@@ -20,9 +20,12 @@
             }
           ],
           "imagePair": [
-            "1-1-math-a.jpg",
-            "1-1-math-b.jpg"
+            "b2",
+            "b3"
           ]
+        },
+        {
+          "type": "divider"
         },
         {
           "type": "question",
@@ -33,8 +36,8 @@
             }
           ],
           "imagePair": [
-            "1-1-vocal-a.webp",
-            "1-1-vocal-b.jpg"
+            "b2",
+            "b3"
           ]
         },
         {
@@ -53,7 +56,7 @@
         {
           "type": "figure-concept",
           "figure": {
-            "image": "1-1-allport.jpg",
+            "image": "allport",
             "caption": "고든 올포트, 『편견』의 저자"
           },
           "concept": {

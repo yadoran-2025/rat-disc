@@ -176,6 +176,38 @@ button {
   margin: 0 0.1rem;
 }
 
+/* 수업 지도안 블록 */
+.sidebar__guide {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar__guide-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.sidebar__guide-link {
+  display: block;
+  padding: 0.55rem 0.9rem;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  transition: opacity 0.15s;
+}
+
+.sidebar__guide-link:hover {
+  opacity: 0.8;
+}
+
 /* 차시 간 이동 링크 */
 .sidebar__lesson-links {
   display: flex;
@@ -248,6 +280,14 @@ button {
 .paragraph {
   font-size: 1.05rem;
   line-height: 1.8;
+}
+
+/* ---------- 구분선 ---------- */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 3rem 0; /* 위아래 여백 3rem */
+  opacity: 0.6;
 }
 
 /* ---------- 섹션 내부 소제목 ---------- */
@@ -435,15 +475,36 @@ button {
 
 /* ---------- 이미지 ---------- */
 .image-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 1rem;
   margin: 1rem 0;
+  height: 260px;          /* 공통 높이 고정 */
+  justify-content: center;
+  align-items: stretch;
 }
 
-.image-pair img,
+/* 일반 이미지: 높이 100%, 가로는 비율대로 자동 */
+.image-pair img {
+  height: 100%;
+  width: auto;
+  display: block;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+
+/* YouTube 썸네일 wrapper: 16:9 비율 유지하며 높이 맞춤 */
+.image-pair .media__thumb-wrap {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 16 / 9;
+  flex-shrink: 0;
+}
+
+/* 플레이스홀더 */
 .image-pair .image-placeholder {
-  width: 100%;
+  height: 100%;
+  aspect-ratio: 4 / 3;
   border-radius: var(--radius);
   border: 1px solid var(--border);
 }
@@ -566,6 +627,72 @@ button {
   padding-left: 1.5rem;
   font-size: 1.1rem;
   line-height: 2;
+}
+
+/* ---------- media 블록 ---------- */
+.media {
+  margin: 1.5rem 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+/* image kind */
+.media--image img {
+  width: 100%;
+  display: block;
+}
+
+/* video-link kind */
+.media__thumb-link {
+  display: block;
+  text-decoration: none;
+}
+
+.media__thumb-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #000;
+}
+
+.media__thumb-wrap img,
+.media__thumb-wrap .image-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.2s;
+}
+
+.media__thumb-link:hover .media__thumb-wrap img {
+  opacity: 0.75;
+}
+
+.media__play-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  transition: transform 0.2s;
+}
+
+.media__thumb-link:hover .media__play-icon {
+  transform: scale(1.15);
+}
+
+.media__caption {
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  border-top: 1px solid var(--border);
 }
 
 /* ---------- 하단 내비게이션 ---------- */

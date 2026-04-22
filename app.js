@@ -18,6 +18,9 @@ async function init() {
     const res = await fetch(`lessons/${lessonId}.json`);
     if (!res.ok) throw new Error(`${res.status}`);
     app.lesson = await res.json();
+    
+    // 구글 시트에서 외부 에셋(이미지 링크 등) 불러오기
+    await loadExternalAssets();
   } catch (err) {
     document.body.innerHTML = `
       <div style="padding: 3rem; font-family: sans-serif;">
@@ -29,6 +32,7 @@ async function init() {
           터미널에서: <code>python3 -m http.server</code>
         </p>
       </div>`;
+    console.error(err);
     return;
   }
 
@@ -48,6 +52,70 @@ async function init() {
   });
 
   document.title = `${app.lesson.title} — ${app.lesson.lessonGroup || "수업 자료"}`;
+}
+
+/**
+ * 구글 스프레드시트에서 이미지/에셋 맵을 가져와 app.lesson.assets에 저장
+ */
+async function loadExternalAssets() {
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT8z4eMwA6UaQLgnZTtj7Xk7-EzBagOfK8YDGUvfogcIa1RV_3h07ggcI2nbN93JbFFdciC9A6uph_4/pub?output=csv";
+  
+  try {
+    const response = await fetch(SHEET_CSV_URL);
+    const csvText = await response.text();
+    
+    if (!app.lesson.assets) app.lesson.assets = {};
+
+    // 시트 구조: A=사진설명, B=사용수업, C=JSON호칭(key), D=링크(url)
+    const rows = csvText.split("\n");
+    rows.forEach(row => {
+      // CSV 셀 파싱 (따옴표 감싸진 셀 포함 대응)
+      const columns = parseCSVRow(row);
+      if (columns.length < 4) return;
+
+      const key = columns[2].trim(); // C열: JSON 상 호칭
+      const url = columns[3].trim(); // D열: 링크
+
+      // 헤더 행이나 빈 값 건너뜀
+      if (!key || !url || key === "JSON 상 호칭") return;
+
+      app.lesson.assets[key] = url;
+    });
+
+    console.log("External assets loaded:", app.lesson.assets);
+  } catch (err) {
+    console.warn("Failed to load external assets from Google Sheets:", err);
+  }
+}
+
+/**
+ * CSV 행 하나를 파싱하여 컬럼 배열 반환.
+ * 따옴표로 감싸진 셀(쉼표/줄바꿈 포함 가능) 처리.
+ */
+function parseCSVRow(row) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      // 연속 따옴표 "" → 리터럴 "
+      if (inQuotes && row[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
 }
 
 /* ---------- 사이드바 ---------- */
@@ -168,6 +236,8 @@ function renderBlock(block) {
     "image-row": renderImageRow,
     expandable: renderExpandable,
     summary: renderSummary,
+    media: renderMedia,
+    divider: renderDivider,
   }[block.type];
 
   if (!render) {
@@ -364,6 +434,98 @@ function renderSummary(block) {
   return div;
 }
 
+function extractYouTubeId(url) {
+  try {
+    const u = new URL(url);
+    // https://www.youtube.com/watch?v=ID
+    if (u.searchParams.has("v")) return u.searchParams.get("v");
+    // https://youtu.be/ID
+    if (u.hostname === "youtu.be") return u.pathname.slice(1);
+    // https://www.youtube.com/embed/ID
+    const embedMatch = u.pathname.match(/^\/embed\/([^/?]+)/);
+    if (embedMatch) return embedMatch[1];
+  } catch (_) {}
+  return null;
+}
+
+function renderMedia(block) {
+  const div = document.createElement("div");
+  div.className = "block media";
+
+  if (block.kind === "image") {
+    div.classList.add("media--image");
+    const img = buildImage(block.src, block.caption || "");
+    div.appendChild(img);
+    if (block.caption) {
+      const cap = document.createElement("div");
+      cap.className = "media__caption";
+      cap.textContent = block.caption;
+      div.appendChild(cap);
+    }
+
+  } else if (block.kind === "video-link") {
+    div.classList.add("media--video-link");
+    const videoId = extractYouTubeId(block.url);
+    const thumbSrc = videoId
+      ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+      : "";
+
+    const link = document.createElement("a");
+    link.href = block.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "media__thumb-link";
+    link.setAttribute("aria-label", block.caption || "영상 보기");
+
+    const thumbWrap = document.createElement("div");
+    thumbWrap.className = "media__thumb-wrap";
+
+    if (thumbSrc) {
+      const img = document.createElement("img");
+      img.src = thumbSrc;
+      img.alt = block.caption || "YouTube 썸네일";
+      img.loading = "lazy";
+      img.onerror = () => {
+        const ph = document.createElement("div");
+        ph.className = "image-placeholder";
+        ph.textContent = "썸네일을 불러올 수 없습니다";
+        img.replaceWith(ph);
+      };
+      thumbWrap.appendChild(img);
+    } else {
+      const ph = document.createElement("div");
+      ph.className = "image-placeholder";
+      ph.textContent = "알 수 없는 URL 형식";
+      thumbWrap.appendChild(ph);
+    }
+
+    const playIcon = document.createElement("div");
+    playIcon.className = "media__play-icon";
+    playIcon.setAttribute("aria-hidden", "true");
+    playIcon.textContent = "▶";
+    thumbWrap.appendChild(playIcon);
+
+    link.appendChild(thumbWrap);
+    div.appendChild(link);
+
+    if (block.caption) {
+      const cap = document.createElement("div");
+      cap.className = "media__caption";
+      cap.textContent = block.caption;
+      div.appendChild(cap);
+    }
+  }
+
+  return div;
+}
+
+function renderDivider(block) {
+  const hr = document.createElement("hr");
+  hr.className = "block divider";
+  return hr;
+}
+
+
 /* ---------- 헬퍼 ---------- */
 function buildAnswer(answer, label = "답 보기") {
   const wrap = document.createElement("div");
@@ -397,8 +559,53 @@ function buildImagePair(paths) {
   return pair;
 }
 
-function buildImage(filename, alt = "") {
-  const src = app.lesson.imageBase + filename;
+function buildImage(key, alt = "") {
+  // 1. assets 맵에서 별명이 있는지 확인
+  let resolved = key;
+  if (app.lesson.assets && app.lesson.assets[key]) {
+    resolved = app.lesson.assets[key];
+  }
+
+  // 2. YouTube URL이면 썸네일 + 클릭 링크로 렌더링
+  const videoId = extractYouTubeId(resolved);
+  if (videoId) {
+    const wrap = document.createElement("div");
+    wrap.className = "media__thumb-wrap";
+
+    const link = document.createElement("a");
+    link.href = resolved;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "media__thumb-link";
+    link.setAttribute("aria-label", alt || "YouTube 영상 보기");
+
+    const thumb = document.createElement("img");
+    thumb.src = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+    thumb.alt = alt || "YouTube 썸네일";
+    thumb.loading = "lazy";
+    thumb.onerror = () => {
+      const ph = document.createElement("div");
+      ph.className = "image-placeholder";
+      ph.textContent = "썸네일을 불러올 수 없습니다";
+      thumb.replaceWith(ph);
+    };
+
+    const playIcon = document.createElement("div");
+    playIcon.className = "media__play-icon";
+    playIcon.setAttribute("aria-hidden", "true");
+    playIcon.textContent = "▶";
+
+    link.appendChild(thumb);
+    link.appendChild(playIcon);
+    wrap.appendChild(link);
+    return wrap;
+  }
+
+  // 3. 일반 이미지: 로컬 또는 외부 URL
+  const src = /^https?:\/\//.test(resolved)
+    ? resolved
+    : app.lesson.imageBase + resolved;
+
   const img = document.createElement("img");
   img.src = src;
   img.alt = alt;
@@ -407,7 +614,7 @@ function buildImage(filename, alt = "") {
   img.onerror = () => {
     const ph = document.createElement("div");
     ph.className = "image-placeholder";
-    ph.textContent = `이미지: ${filename}`;
+    ph.textContent = `이미지: ${key}`;
     img.replaceWith(ph);
   };
 

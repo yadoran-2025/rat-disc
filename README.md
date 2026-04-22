@@ -107,5 +107,25 @@ JSON 최상위 필드:
 - `image-row` — 이미지 여러 개 가로 나열
 - `expandable` — 접어둘 수 있는 하위 블록 모음
 - `summary` — 차시 요약 (번호 목록)
+- `media` — 영상 링크 또는 독립 이미지 (하위 `kind` 필드로 구분)
+  - `kind: "video-link"` — YouTube 썸네일 + 클릭 시 새 탭으로 영상 열림
+    ```json
+    {
+      "type": "media",
+      "kind": "video-link",
+      "url": "https://www.youtube.com/watch?v=VIDEO_ID",
+      "caption": "영상 설명 (선택)"
+    }
+    ```
+    지원 URL 형식: `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/embed/`
+  - `kind: "image"` — 단독 이미지 + 캡션
+    ```json
+    {
+      "type": "media",
+      "kind": "image",
+      "src": "파일명.jpg",
+      "caption": "이미지 설명 (선택)"
+    }
+    ```
 
 본문에서 `**볼드**`는 강조로, 줄바꿈은 그대로 렌더됩니다.
