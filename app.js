@@ -15,10 +15,11 @@ async function init() {
   const lessonId = params.get("lesson") || DEFAULT_LESSON;
 
   try {
-    const res = await fetch(`lessons/${lessonId}.json`);
+    // 캐시 버스팅: JSON 수정 후 새로고침하면 즉시 반영되도록
+    const res = await fetch(`lessons/${lessonId}.json?_=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`${res.status}`);
     app.lesson = await res.json();
-    
+
     // 구글 시트에서 외부 에셋(이미지 링크 등) 불러오기
     await loadExternalAssets();
   } catch (err) {
@@ -59,21 +60,22 @@ async function init() {
  */
 async function loadExternalAssets() {
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT8z4eMwA6UaQLgnZTtj7Xk7-EzBagOfK8YDGUvfogcIa1RV_3h07ggcI2nbN93JbFFdciC9A6uph_4/pub?output=csv";
-  
+
   try {
-    const response = await fetch(SHEET_CSV_URL);
+    // 캐시 버스팅: 매 호출마다 다른 URL로 만들어 브라우저/CDN 캐시 우회
+    // (구글 published CSV는 캐시 수명이 길어, 시트 수정 후 새로고침해도 옛 값이 보이는 현상 방지)
+    const bustUrl = `${SHEET_CSV_URL}&_=${Date.now()}`;
+    const response = await fetch(bustUrl, { cache: "no-store" });
     const csvText = await response.text();
-    
+
     if (!app.lesson.assets) app.lesson.assets = {};
 
-    // 시트 구조: A=사진설명, B=사용수업, C=JSON호칭(key), D=링크(url)
-    const rows = csvText.split("\n");
-    rows.forEach(row => {
-      // CSV 셀 파싱 (따옴표 감싸진 셀 포함 대응)
-      const columns = parseCSVRow(row);
+    // 개선된 CSV 파서 사용
+    const rows = parseCSV(csvText);
+    rows.forEach(columns => {
       if (columns.length < 4) return;
 
-      const key = columns[2].trim(); // C열: JSON 상 호칭
+      const key = columns[1].trim(); // B열: JSON 상 호칭
       const url = columns[3].trim(); // D열: 링크
 
       // 헤더 행이나 빈 값 건너뜀
@@ -89,33 +91,51 @@ async function loadExternalAssets() {
 }
 
 /**
- * CSV 행 하나를 파싱하여 컬럼 배열 반환.
- * 따옴표로 감싸진 셀(쉼표/줄바꿈 포함 가능) 처리.
+ * CSV 전체 텍스트를 파싱하여 행(row) 배열의 배열을 반환한다.
+ * 따옴표로 감싸진 셀 내부의 줄바꿈과 쉼표를 올바르게 처리한다.
  */
-function parseCSVRow(row) {
-  const result = [];
-  let current = "";
+function parseCSV(text) {
+  const rows = [];
+  let currentRow = [];
+  let currentField = "";
   let inQuotes = false;
 
-  for (let i = 0; i < row.length; i++) {
-    const ch = row[i];
-    if (ch === '"') {
-      // 연속 따옴표 "" → 리터럴 "
-      if (inQuotes && row[i + 1] === '"') {
-        current += '"';
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      // 따옴표 내에서 연속된 따옴표 "" 는 리터럴 따옴표로 처리
+      if (inQuotes && nextChar === '"') {
+        currentField += '"';
         i++;
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (ch === "," && !inQuotes) {
-      result.push(current);
-      current = "";
+    } else if (char === ',' && !inQuotes) {
+      currentRow.push(currentField);
+      currentField = "";
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      // \r\n (윈도우 줄바꿈) 대응
+      if (char === '\r' && nextChar === '\n') i++;
+      
+      // 현재 필드를 추가하고 행을 저장
+      currentRow.push(currentField);
+      rows.push(currentRow);
+      currentRow = [];
+      currentField = "";
     } else {
-      current += ch;
+      currentField += char;
     }
   }
-  result.push(current);
-  return result;
+
+  // 파일 끝에 도달했을 때 마지막에 남은 필드와 행 처리
+  if (currentRow.length > 0 || currentField !== "") {
+    currentRow.push(currentField);
+    rows.push(currentRow);
+  }
+
+  return rows;
 }
 
 /* ---------- 사이드바 ---------- */
@@ -217,9 +237,125 @@ function renderSection(sec) {
   `;
   main.appendChild(header);
 
-  sec.blocks.forEach(block => {
+  sec.blocks.forEach((block, idx) => {
     const el = renderBlock(block);
-    if (el) main.appendChild(el);
+    if (el) {
+      // 포커스 가능한 블록에 📺 버튼 주입 (divider 제외)
+      if (block.type !== "divider") {
+        attachFocusAffordance(el);
+      }
+      main.appendChild(el);
+    }
+
+    // 자동 구분선 로직: 예외 없이 모든 블록 사이에 추가
+    const nextBlock = sec.blocks[idx + 1];
+    if (nextBlock) {
+      main.appendChild(renderDivider());
+    }
+  });
+}
+
+/* ---------- 블록 포커스 기능 ---------- */
+/**
+ * 블록 우상단에 📺 버튼을 주입한다.
+ * 버튼은 평소엔 투명(opacity: 0)이고 블록 hover 시 나타남 (CSS로 처리).
+ * 클릭하면 해당 블록을 풀스크린 오버레이에 복제하여 띄움.
+ */
+function attachFocusAffordance(blockEl) {
+  blockEl.classList.add("block--focusable");
+
+  const btn = document.createElement("button");
+  btn.className = "focus-btn";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "이 블록 화면 포커스");
+  btn.setAttribute("title", "이 블록에 집중 (ESC로 닫기)");
+  btn.textContent = "📺";
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openFocusOverlay(blockEl);
+  });
+  blockEl.appendChild(btn);
+}
+
+/**
+ * 블록을 복제하여 풀스크린 오버레이에 띄운다.
+ * 복제본의 토글 버튼들(answer, expandable)은 이벤트가 유실되므로 재연결.
+ */
+function openFocusOverlay(originalBlockEl) {
+  // 기존 오버레이 제거 (중복 방지)
+  closeFocusOverlay();
+
+  const overlay = document.createElement("div");
+  overlay.className = "focus-overlay";
+  overlay.id = "focus-overlay";
+
+  const stage = document.createElement("div");
+  stage.className = "focus-overlay__stage";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "focus-overlay__close";
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "닫기");
+  closeBtn.textContent = "✕";
+  closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeFocusOverlay();
+  });
+
+  // 블록 복제 (얕은 복제가 아니라 deep clone)
+  const clone = originalBlockEl.cloneNode(true);
+  clone.classList.add("block--focused");
+
+  // 복제본의 📺 버튼 제거 (포커스 안에서 또 포커스는 의미 없음)
+  clone.querySelectorAll(".focus-btn").forEach(b => b.remove());
+
+  // 복제본의 토글 버튼 이벤트 재연결 (answer, expandable)
+  rewireToggles(clone);
+
+  stage.appendChild(closeBtn);
+  stage.appendChild(clone);
+  overlay.appendChild(stage);
+
+  // 배경 클릭으로 닫기 (stage 내부 클릭은 전파 차단)
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeFocusOverlay();
+  });
+  stage.addEventListener("click", (e) => e.stopPropagation());
+
+  document.body.appendChild(overlay);
+  document.body.classList.add("is-focus-locked");
+
+  // 포커스 진입 애니메이션 트리거
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+}
+
+function closeFocusOverlay() {
+  const overlay = document.getElementById("focus-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("is-open");
+  document.body.classList.remove("is-focus-locked");
+  // 애니메이션 끝난 뒤 제거
+  setTimeout(() => overlay.remove(), 200);
+}
+
+/**
+ * 복제본 안의 토글 버튼들에 이벤트 재연결.
+ * cloneNode는 DOM은 복제하지만 addEventListener로 붙인 리스너는 복제 안 됨.
+ */
+function rewireToggles(root) {
+  // answer (답 보기)
+  root.querySelectorAll(".answer").forEach(ans => {
+    const toggle = ans.querySelector(".answer__toggle");
+    if (toggle) {
+      toggle.addEventListener("click", () => ans.classList.toggle("is-open"));
+    }
+  });
+  // expandable
+  root.querySelectorAll(".expandable").forEach(exp => {
+    const summary = exp.querySelector(".expandable__summary");
+    if (summary) {
+      summary.addEventListener("click", () => exp.classList.toggle("is-open"));
+    }
   });
 }
 
@@ -444,7 +580,7 @@ function extractYouTubeId(url) {
     // https://www.youtube.com/embed/ID
     const embedMatch = u.pathname.match(/^\/embed\/([^/?]+)/);
     if (embedMatch) return embedMatch[1];
-  } catch (_) {}
+  } catch (_) { }
   return null;
 }
 
@@ -566,7 +702,13 @@ function buildImage(key, alt = "") {
     resolved = app.lesson.assets[key];
   }
 
-  // 2. YouTube URL이면 썸네일 + 클릭 링크로 렌더링
+  // 2. "text:" 프리픽스면 신문기사 톤의 텍스트 컷아웃으로 렌더링
+  //    (스프레드시트 D열에 이미지 URL 대신 "text:본문..."을 적으면 이미지 자리에 텍스트가 들어감)
+  if (typeof resolved === "string" && resolved.startsWith("text:")) {
+    return buildTextCutout(resolved.slice(5), alt);
+  }
+
+  // 3. YouTube URL이면 썸네일 + 클릭 링크로 렌더링
   const videoId = extractYouTubeId(resolved);
   if (videoId) {
     const wrap = document.createElement("div");
@@ -629,6 +771,53 @@ function formatInline(text) {
   return s;
 }
 
+/**
+ * 이미지 자리에 들어가는 "신문기사 컷아웃".
+ * 스프레드시트 D열에 "text:본문..." 으로 적어두면 buildImage가 이 함수로 위임.
+ * 본문 내 **볼드**·줄바꿈 지원 (formatInline과 동일).
+ *
+ * 첫 줄에 ## 이 붙어있으면 헤드라인으로, --- 다음 줄은 출처/캡션으로 분리 렌더.
+ *   예) "text:## 재산 분할 다시 판단할 듯\n최 회장이 노 관장에게...\n---\n서울고등법원 가사2부"
+ */
+function buildTextCutout(body, alt = "") {
+  const wrap = document.createElement("div");
+  wrap.className = "text-cutout";
+
+  // --- 로 본문/출처 분리
+  const [mainPart, sourcePart] = body.split(/\n---\n/);
+
+  const lines = mainPart.split("\n");
+  let headline = null;
+  let rest = lines;
+  if (lines[0] && lines[0].startsWith("## ")) {
+    headline = lines[0].slice(3).trim();
+    rest = lines.slice(1);
+    // 헤드라인 다음 빈 줄 제거 (있다면)
+    while (rest.length && rest[0].trim() === "") rest.shift();
+  }
+
+  if (headline) {
+    const h = document.createElement("div");
+    h.className = "text-cutout__headline";
+    h.innerHTML = formatInline(headline);
+    wrap.appendChild(h);
+  }
+
+  const bodyEl = document.createElement("div");
+  bodyEl.className = "text-cutout__body";
+  bodyEl.innerHTML = formatInline(rest.join("\n"));
+  wrap.appendChild(bodyEl);
+
+  if (sourcePart && sourcePart.trim()) {
+    const src = document.createElement("div");
+    src.className = "text-cutout__source";
+    src.innerHTML = formatInline(sourcePart.trim());
+    wrap.appendChild(src);
+  }
+
+  return wrap;
+}
+
 function escapeHtml(s) {
   if (s == null) return "";
   return String(s)
@@ -659,6 +848,16 @@ function renderNavFooter() {
 function bindKeyboard() {
   document.addEventListener("keydown", e => {
     if (e.target.matches("input, textarea")) return;
+
+    // 포커스 오버레이가 열려 있으면: ESC만 받고 나머지 단축키는 차단
+    const overlayOpen = !!document.getElementById("focus-overlay");
+    if (overlayOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeFocusOverlay();
+      }
+      return;
+    }
 
     if (e.key === "ArrowRight" || e.key === "PageDown") {
       e.preventDefault();
