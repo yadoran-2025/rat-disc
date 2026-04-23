@@ -33,7 +33,8 @@
           "imagePair": [
             "CT4",
             "CT5"
-          ]
+          ],
+          "comments": true
         },
         {
           "type": "question",
@@ -97,7 +98,8 @@
               "그러므로 **차별**이다.",
               "중앙2009차별1 (판정일: 2009. 6. 4.)"
             ]
-          }
+          },
+          "comments": true
         },
         {
           "type": "case",
