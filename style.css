@@ -1292,6 +1292,7 @@ body.is-focus-locked {
   }
 }
 /* ====================================================================
+<<<<<<< HEAD
    수업 코드 게이트 화면
    ==================================================================== */
 .gate {
@@ -1447,10 +1448,27 @@ body.is-focus-locked {
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.3rem 0.85rem;
+=======
+   댓글 시스템 — 학생 답변 입력 & 목록
+   ==================================================================== */
+
+/* ── 교사 모드 배지 ── */
+.teacher-badge {
+  position: fixed;
+  top: 0.75rem;
+  right: 1rem;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.3rem 0.8rem;
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
   border-radius: 999px;
   z-index: 500;
   box-shadow: var(--shadow-md);
   letter-spacing: 0.02em;
+<<<<<<< HEAD
   pointer-events: none;
 }
 
@@ -1604,12 +1622,21 @@ body.is-focus-locked {
 /* ====================================================================
    댓글 시스템
    ==================================================================== */
+=======
+}
+
+/* ── 댓글 섹션 래퍼 ── */
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 .comment-section {
   margin-top: 1.25rem;
   border-top: 1px dashed rgba(27, 107, 255, 0.25);
   padding-top: 1rem;
 }
 
+<<<<<<< HEAD
+=======
+/* ── 토글 버튼 ── */
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 .comment-toggle {
   display: inline-flex;
   align-items: center;
@@ -1622,7 +1649,11 @@ body.is-focus-locked {
   border: 1.5px solid var(--brand);
   border-radius: 999px;
   background: rgba(27, 107, 255, 0.06);
+<<<<<<< HEAD
   transition: background 0.15s, color 0.15s;
+=======
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
   cursor: pointer;
 }
 
@@ -1630,6 +1661,10 @@ body.is-focus-locked {
 .comment-toggle.is-open {
   background: var(--brand);
   color: #fff;
+<<<<<<< HEAD
+=======
+  border-color: var(--brand);
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 }
 
 .comment-toggle::after {
@@ -1639,19 +1674,39 @@ body.is-focus-locked {
   transition: transform 0.2s;
 }
 
+<<<<<<< HEAD
 .comment-toggle.is-open::after { transform: rotate(180deg); }
 
 .comment-body {
   display: none;
   margin-top: 1rem;
   background: rgba(255,255,255,0.6);
+=======
+.comment-toggle.is-open::after {
+  transform: rotate(180deg);
+}
+
+/* ── 댓글 바디 (접힘/펼침) ── */
+.comment-body {
+  display: none;
+  margin-top: 1rem;
+  background: rgba(255, 255, 255, 0.6);
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
+<<<<<<< HEAD
 .comment-body.is-open { display: block; }
 
+=======
+.comment-body.is-open {
+  display: block;
+}
+
+/* ── 댓글 목록 ── */
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 .comment-list {
   padding: 0.75rem 1rem;
   max-height: 320px;
@@ -1670,6 +1725,14 @@ body.is-focus-locked {
   padding: 1.25rem 0;
 }
 
+<<<<<<< HEAD
+=======
+.comment-error {
+  color: var(--accent);
+}
+
+/* ── 댓글 아이템 ── */
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 .comment-item {
   position: relative;
   background: #fff;
@@ -1712,6 +1775,10 @@ body.is-focus-locked {
   word-break: break-word;
 }
 
+<<<<<<< HEAD
+=======
+/* 교사 삭제 버튼 */
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 .comment-item__delete {
   position: absolute;
   top: 0.4rem;
@@ -1732,9 +1799,22 @@ body.is-focus-locked {
   justify-content: center;
 }
 
+<<<<<<< HEAD
 .comment-item:hover .comment-item__delete { opacity: 1; }
 .comment-item__delete:hover { background: var(--accent); color: #fff; }
 
+=======
+.comment-item:hover .comment-item__delete {
+  opacity: 1;
+}
+
+.comment-item__delete:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── 입력 폼 ── */
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 .comment-form {
   display: flex;
   flex-direction: column;
@@ -1809,9 +1889,24 @@ body.is-focus-locked {
   transition: background 0.15s, transform 0.05s;
 }
 
+<<<<<<< HEAD
 .comment-form__submit:hover:not(:disabled) { background: var(--brand-deep); }
 .comment-form__submit:active:not(:disabled) { transform: translateY(1px); }
 .comment-form__submit:disabled { opacity: 0.55; cursor: default; }
+=======
+.comment-form__submit:hover:not(:disabled) {
+  background: var(--brand-deep);
+}
+
+.comment-form__submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.comment-form__submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
 
 .comment-form__error {
   font-family: var(--font-sans);
@@ -1820,4 +1915,11 @@ body.is-focus-locked {
   padding: 0.3rem 0;
 }
 
+<<<<<<< HEAD
 .focus-overlay .comment-section { display: none; }
+=======
+/* ── 포커스 오버레이 안: 댓글창 숨김 (이미 app.js에서 제거하지만 안전망) ── */
+.focus-overlay .comment-section {
+  display: none;
+}
+>>>>>>> a7ff54be63a919cb97e005920e2ce9dfbf0c982e
