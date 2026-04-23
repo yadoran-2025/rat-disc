@@ -1291,3 +1291,275 @@ body.is-focus-locked {
     font-size: 1.2rem;
   }
 }
+/* ====================================================================
+   댓글 시스템 — 학생 답변 입력 & 목록
+   ==================================================================== */
+
+/* ── 교사 모드 배지 ── */
+.teacher-badge {
+  position: fixed;
+  top: 0.75rem;
+  right: 1rem;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  z-index: 500;
+  box-shadow: var(--shadow-md);
+  letter-spacing: 0.02em;
+}
+
+/* ── 댓글 섹션 래퍼 ── */
+.comment-section {
+  margin-top: 1.25rem;
+  border-top: 1px dashed rgba(27, 107, 255, 0.25);
+  padding-top: 1rem;
+}
+
+/* ── 토글 버튼 ── */
+.comment-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--brand);
+  padding: 0.4rem 0.85rem;
+  border: 1.5px solid var(--brand);
+  border-radius: 999px;
+  background: rgba(27, 107, 255, 0.06);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+
+.comment-toggle:hover,
+.comment-toggle.is-open {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+
+.comment-toggle::after {
+  content: "▼";
+  font-size: 0.6rem;
+  opacity: 0.8;
+  transition: transform 0.2s;
+}
+
+.comment-toggle.is-open::after {
+  transform: rotate(180deg);
+}
+
+/* ── 댓글 바디 (접힘/펼침) ── */
+.comment-body {
+  display: none;
+  margin-top: 1rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.comment-body.is-open {
+  display: block;
+}
+
+/* ── 댓글 목록 ── */
+.comment-list {
+  padding: 0.75rem 1rem;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.comment-loading,
+.comment-empty {
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 1.25rem 0;
+}
+
+.comment-error {
+  color: var(--accent);
+}
+
+/* ── 댓글 아이템 ── */
+.comment-item {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.9rem;
+  animation: comment-in 0.22s ease-out both;
+}
+
+@keyframes comment-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.comment-item__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.comment-item__name {
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--brand-ink);
+}
+
+.comment-item__time {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+.comment-item__text {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 교사 삭제 버튼 */
+.comment-item__delete {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comment-item:hover .comment-item__delete {
+  opacity: 1;
+}
+
+.comment-item__delete:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── 입력 폼 ── */
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.comment-form__name {
+  width: 160px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  background: #fff;
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.comment-form__name:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(27, 107, 255, 0.12);
+}
+
+.comment-form__text {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  background: #fff;
+  color: var(--text);
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.comment-form__text:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(27, 107, 255, 0.12);
+}
+
+.comment-form__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.comment-form__counter {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.comment-form__submit {
+  padding: 0.5rem 1.1rem;
+  background: var(--brand);
+  color: #fff;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+
+.comment-form__submit:hover:not(:disabled) {
+  background: var(--brand-deep);
+}
+
+.comment-form__submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.comment-form__submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.comment-form__error {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  color: var(--accent);
+  padding: 0.3rem 0;
+}
+
+/* ── 포커스 오버레이 안: 댓글창 숨김 (이미 app.js에서 제거하지만 안전망) ── */
+.focus-overlay .comment-section {
+  display: none;
+}
