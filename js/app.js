@@ -1265,13 +1265,51 @@ function formatInline(text) {
 }
 
 function buildTextCutout(body, alt = "") {
-  const wrap = document.createElement("div"); wrap.className = "text-cutout";
-  const [mainPart, sourcePart] = body.split(/\n---\n/);
-  const lines = mainPart.split("\n"); let headline = null, rest = lines;
-  if (lines[0]?.startsWith("## ")) { headline = lines[0].slice(3).trim(); rest = lines.slice(1); while (rest.length && !rest[0].trim()) rest.shift(); }
-  if (headline) { const h = document.createElement("div"); h.className = "text-cutout__headline"; h.innerHTML = formatInline(headline); wrap.appendChild(h); }
-  const bodyEl = document.createElement("div"); bodyEl.className = "text-cutout__body"; bodyEl.innerHTML = formatInline(rest.join("\n")); wrap.appendChild(bodyEl);
-  if (sourcePart?.trim()) { const src = document.createElement("div"); src.className = "text-cutout__source"; src.innerHTML = formatInline(sourcePart.trim()); wrap.appendChild(src); }
+  const wrap = document.createElement("div");
+  wrap.className = "text-cutout";
+
+  // 줄바꿈 정규화 (\r\n -> \n) 및 앞뒤 공백 제거
+  const cleanBody = body.trim().replace(/\r\n/g, "\n");
+  
+  // 출처 분리 (--- 기준)
+  const parts = cleanBody.split(/\n---\n/);
+  const mainPart = parts[0].trim();
+  const sourcePart = parts[1] ? parts[1].trim() : null;
+
+  // 본문을 줄 단위로 분리
+  const lines = mainPart.split("\n");
+  let headline = null;
+  let restLines = [...lines];
+
+  // 첫 줄이 ## 로 시작하는지 확인 (공백 유무 상관없이 허용)
+  if (lines[0] && /^##\s?/.test(lines[0])) {
+    headline = lines[0].replace(/^##\s?/, "").trim();
+    restLines = lines.slice(1);
+    // 제목 다음의 빈 줄들 제거
+    while (restLines.length && !restLines[0].trim()) {
+      restLines.shift();
+    }
+  }
+
+  if (headline) {
+    const h = document.createElement("div");
+    h.className = "text-cutout__headline";
+    h.innerHTML = formatInline(headline);
+    wrap.appendChild(h);
+  }
+
+  const bodyEl = document.createElement("div");
+  bodyEl.className = "text-cutout__body";
+  bodyEl.innerHTML = formatInline(restLines.join("\n"));
+  wrap.appendChild(bodyEl);
+
+  if (sourcePart) {
+    const src = document.createElement("div");
+    src.className = "text-cutout__source";
+    src.innerHTML = formatInline(sourcePart);
+    wrap.appendChild(src);
+  }
+
   return wrap;
 }
 

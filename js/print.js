@@ -18,11 +18,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const imagesToPrint = keys.map(function(key) {
             const cleanKey = String(key).trim();
-            return { key: cleanKey, url: transformDriveUrl(sheetMap[cleanKey]) };
+            const rawUrl = sheetMap[cleanKey] || '';
+            return { key: cleanKey, url: transformDriveUrl(rawUrl) };
         }).filter(function(img) { return img.url; });
 
         if (imagesToPrint.length === 0) {
-            rootContainer.innerHTML = '<div style="padding:40px; color:#999; text-align:center;">표시할 이미지가 없습니다.<br>JSON의 imageKeys가 구글 시트와 일치하는지 확인하세요.</div>';
+            rootContainer.innerHTML = '<div style="padding:40px; color:#999; text-align:center;">표시할 자료가 없습니다.<br>JSON의 imageKeys가 구글 시트와 일치하는지 확인하세요.</div>';
             return;
         }
 
@@ -35,40 +36,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function packImagesPerfectly(images, rootContainer, lessonData) {
-    const MAX_H = 1000; // A4 안전 세로 길이 (px 환산 기준)
+    const MAX_H = 1000; // A4 안전 세로 길이
     const COL_W = 370;
     const ITEM_GAP = 25;
 
-    // 1. 모든 이미지의 높이를 미리 계산
-    const measuredImages = await Promise.all(images.map(function(img) {
+    // 1. 모든 아이템의 높이를 미리 계산
+    const measuredItems = await Promise.all(images.map(function(item) {
         return new Promise(function(resolve) {
-            const tempImg = new Image();
-            tempImg.onload = function() {
-                const ratio = tempImg.height / tempImg.width;
-                const rawH = (ratio * COL_W) + 40;
-                const h = Math.min(rawH, MAX_H - 20);
-                resolve(Object.assign({}, img, { ratio: ratio, h: h, rawH: rawH }));
-            };
-            tempImg.onerror = function() {
-                resolve(Object.assign({}, img, { ratio: 0.75, h: 0.75 * COL_W + 40, error: true }));
-            };
-            setTimeout(function() {
-                resolve(Object.assign({}, img, { ratio: 0.75, h: 0.75 * COL_W + 40, error: true }));
-            }, 5000);
-            tempImg.src = img.url;
+            if (item.url.startsWith('text:')) {
+                // 텍스트 컷아웃 높이 추정 (한 줄당 약 25px, 최소 150px)
+                const textContent = item.url.slice(5);
+                const lineCount = textContent.split(/\r?\n/).length;
+                const h = Math.max(150, lineCount * 25 + 60); // 60은 여백 및 제목 공간
+                resolve(Object.assign({}, item, { isText: true, h: h, rawH: h }));
+            } else {
+                const tempImg = new Image();
+                tempImg.onload = function() {
+                    const ratio = tempImg.height / tempImg.width;
+                    const rawH = (ratio * COL_W) + 40; // 40은 캡션 공간
+                    const h = Math.min(rawH, MAX_H - 20);
+                    resolve(Object.assign({}, item, { isText: false, ratio: ratio, h: h, rawH: rawH }));
+                };
+                tempImg.onerror = function() {
+                    resolve(Object.assign({}, item, { isText: false, ratio: 0.75, h: 0.75 * COL_W + 40, error: true }));
+                };
+                setTimeout(function() {
+                    resolve(Object.assign({}, item, { isText: false, ratio: 0.75, h: 0.75 * COL_W + 40, error: true }));
+                }, 5000);
+                tempImg.src = item.url;
+            }
         });
     }));
 
-    // 2. 정렬 없이 원래 JSON 순서 유지
-    const sorted = measuredImages;
+    // 2. 원래 순서 유지
+    const sorted = measuredItems;
 
-    // 3. 컬럼 풀 초기화 (헤더가 absolute 배치라 모든 컬럼 maxH 동일)
+    // 3. 컬럼 풀 초기화
     let columns = [
         { items: [], h: 0, maxH: MAX_H },
         { items: [], h: 0, maxH: MAX_H }
     ];
 
-    // 4. 순차 배치: 왼쪽 열 → 오른쪽 열 → 다음 페이지 왼쪽 → ...
+    // 4. 순차 배치
     let currentColIndex = 0;
     for (let item of sorted) {
         while (true) {
@@ -89,7 +98,7 @@ async function packImagesPerfectly(images, rootContainer, lessonData) {
         }
     }
 
-    // 5. 컬럼들을 페이지로 변환
+    // 5. 페이지 변환
     const pages = [];
     for (let i = 0; i < columns.length; i += 2) {
         const leftCol  = columns[i];
@@ -104,62 +113,112 @@ async function packImagesPerfectly(images, rootContainer, lessonData) {
         const pageDiv = document.createElement('div');
         pageDiv.className = 'page-content';
 
-        // 모든 페이지: 상단 여백 안에 절대 위치 헤더
         const header = document.createElement('div');
         header.className = 'page-header';
+        let headerHTML = '<div class="header-top"><span class="header-label">' + (lessonData.header || '') + '</span></div>';
+        headerHTML += '<div class="header-line-wrapper"><div class="header-line-accent"></div><div class="header-line-base"></div></div>';
 
-        let headerHTML = '';
-        headerHTML += '<div class="header-top">';
-        headerHTML += '<span class="header-label">' + (lessonData.header || '') + '</span>';
-        headerHTML += '</div>';
-        headerHTML += '<div class="header-line-wrapper">';
-        headerHTML += '<div class="header-line-accent"></div>';
-        headerHTML += '<div class="header-line-base"></div>';
-        headerHTML += '</div>';
-
-        // 첫 페이지에만 title / subtitle 추가
         if (i === 0 && (lessonData.title || lessonData.subtitle)) {
             headerHTML += '<div class="page-title-area">';
             if (lessonData.title)    headerHTML += '<h1>' + lessonData.title + '</h1>';
             if (lessonData.subtitle) headerHTML += '<p>'  + lessonData.subtitle + '</p>';
             headerHTML += '</div>';
         }
-
         header.innerHTML = headerHTML;
         pageDiv.appendChild(header);
 
-        // 문제 그리드
         const grid = document.createElement('div');
         grid.className = 'smart-grid';
+        const leftCol = document.createElement('div'); leftCol.className = 'column';
+        page.left.forEach(function(item) { leftCol.appendChild(createPrintCard(item)); });
+        const rightCol = document.createElement('div'); rightCol.className = 'column';
+        page.right.forEach(function(item) { rightCol.appendChild(createPrintCard(item)); });
 
-        const leftCol = document.createElement('div');
-        leftCol.className = 'column';
-        page.left.forEach(function(img) { leftCol.appendChild(createImageCard(img)); });
-
-        const rightCol = document.createElement('div');
-        rightCol.className = 'column';
-        page.right.forEach(function(img) { rightCol.appendChild(createImageCard(img)); });
-
-        grid.appendChild(leftCol);
-        grid.appendChild(rightCol);
+        grid.appendChild(leftCol); grid.appendChild(rightCol);
         pageDiv.appendChild(grid);
 
-        // 페이지 번호
         const footer = document.createElement('footer');
         footer.className = 'print-footer';
         footer.textContent = '- ' + (i + 1) + ' -';
         pageDiv.appendChild(footer);
-
         rootContainer.appendChild(pageDiv);
     });
 }
 
-function createImageCard(imgData) {
-    const item = document.createElement('div');
-    item.className = 'image-item';
-    item.innerHTML = '<div class="caption">' + imgData.key + '</div>' +
-                     '<img src="' + imgData.url + '" alt="' + imgData.key + '">';
-    return item;
+function createPrintCard(item) {
+    const card = document.createElement('div');
+    card.className = 'image-item';
+    
+    const caption = document.createElement('div');
+    caption.className = 'caption';
+    caption.textContent = item.key;
+    card.appendChild(caption);
+
+    if (item.isText) {
+        const textBody = item.url.slice(5);
+        card.appendChild(buildTextCutout(textBody));
+    } else {
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = item.key;
+        card.appendChild(img);
+    }
+    return card;
+}
+
+function buildTextCutout(body) {
+    const wrap = document.createElement('div');
+    wrap.className = 'text-cutout';
+    wrap.style.fontSize = '12px'; // 인쇄용 폰트 크기 조정
+    wrap.style.padding = '10px';
+    wrap.style.border = '1px solid #ccc';
+    wrap.style.background = '#fff';
+
+    const cleanBody = body.trim().replace(/\r\n/g, '\n');
+    const parts = cleanBody.split(/\n---\n/);
+    const mainPart = parts[0].trim();
+    const sourcePart = parts[1] ? parts[1].trim() : null;
+
+    const lines = mainPart.split('\n');
+    let headline = null;
+    let restLines = [...lines];
+
+    if (lines[0] && /^##\s?/.test(lines[0])) {
+        headline = lines[0].replace(/^##\s?/, '').trim();
+        restLines = lines.slice(1);
+        while (restLines.length && !restLines[0].trim()) restLines.shift();
+    }
+
+    if (headline) {
+        const h = document.createElement('div');
+        h.className = 'text-cutout__headline';
+        h.style.fontWeight = 'bold';
+        h.style.fontSize = '14px';
+        h.style.marginBottom = '5px';
+        h.style.borderBottom = '1px solid #eee';
+        h.textContent = headline;
+        wrap.appendChild(h);
+    }
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'text-cutout__body';
+    bodyEl.style.whiteSpace = 'pre-wrap';
+    bodyEl.style.lineHeight = '1.4';
+    bodyEl.textContent = restLines.join('\n');
+    wrap.appendChild(bodyEl);
+
+    if (sourcePart) {
+        const src = document.createElement('div');
+        src.className = 'text-cutout__source';
+        src.style.fontSize = '10px';
+        src.style.color = '#777';
+        src.style.marginTop = '8px';
+        src.style.borderTop = '1px dashed #ddd';
+        src.textContent = sourcePart;
+        wrap.appendChild(src);
+    }
+
+    return wrap;
 }
 
 function parseSheetCSV(csvText) {
@@ -179,7 +238,7 @@ function parseSheetCSV(csvText) {
         cells.push(curr.trim());
         const key = cells[1] ? cells[1].replace(/^"|"$/g, '') : '';
         const url = cells[3] ? cells[3].replace(/^"|"$/g, '') : '';
-        if (key && url && url.startsWith('http')) map[key] = url;
+        if (key && url) map[key] = url; //startsWith('http') 체크 제거 (text: 지원)
     });
     return map;
 }
@@ -189,7 +248,9 @@ function extractKeysFromSections(data) {
     if (data.sections) {
         data.sections.forEach(function(s) {
             s.blocks.forEach(function(b) {
-                if (b.imagePair) keys.push.apply(keys, b.imagePair);
+                if (b.imagePair) {
+                    b.imagePair.forEach(function(k) { keys.push(k); });
+                }
             });
         });
     }
@@ -198,6 +259,7 @@ function extractKeysFromSections(data) {
 
 function transformDriveUrl(url) {
     if (!url || typeof url !== 'string') return '';
+    if (url.startsWith('text:')) return url; // text: 는 변환 생략
     if (!url.includes('drive.google.com')) return url;
     const id = url.match(/\/d\/([^/]+)/);
     const id2 = url.match(/id=([^&]+)/);
