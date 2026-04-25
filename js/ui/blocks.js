@@ -1,7 +1,6 @@
 import { app } from "../state.js";
 import { formatInline, escapeHtml, parseExamTitle, extractYouTubeId } from "../utils.js";
 import { attachFocusAffordance, openImageLightbox } from "./components.js";
-import { buildCommentSection } from "./comments.js";
 
 const FULLSCREEN_TYPES  = new Set(['사례', '발문', '개념', '이미지곁글', '미디어', '기출문제', '접이식', '요약']);
 const IMG_SELF_HANDLED  = new Set(['이미지곁글', '미디어']); // 자체적으로 이미지를 처리하는 블록
@@ -132,7 +131,7 @@ function renderCase(block, blockIdx) {
   wrapper.className = "case-with-comments";
   div.classList.remove("block");
   wrapper.appendChild(div);
-  wrapper.appendChild(buildCommentSection(commentKey, "case"));
+  appendCommentSection(wrapper, commentKey, "case");
   return wrapper;
 }
 
@@ -183,11 +182,21 @@ function renderQuestion(block, blockIdx) {
   div.classList.remove("block");
   outer.appendChild(div);
   commentSections.forEach(({ key, label }) => {
-    const cs = buildCommentSection(key, "question");
-    cs.querySelector(".comment-section__toggle").textContent = label;
-    outer.appendChild(cs);
+    appendCommentSection(outer, key, "question", label);
   });
   return outer;
+}
+
+function appendCommentSection(parent, key, variant, label = null) {
+  import("./comments.js")
+    .then(({ buildCommentSection }) => {
+      const section = buildCommentSection(key, variant);
+      if (label) section.querySelector(".comment-section__toggle").textContent = label;
+      parent.appendChild(section);
+    })
+    .catch(err => {
+      console.warn("댓글 모듈을 불러오지 못했습니다:", err);
+    });
 }
 
 function renderConcept(block) {

@@ -5,7 +5,7 @@
 .dashboard {
   min-height: 100vh;
   background: radial-gradient(circle at top right, #f0f7ff, #ffffff);
-  padding: 4rem 2rem;
+  padding: 3rem 2rem;
   font-family: var(--font-sans);
   color: var(--text);
   display: flex;
@@ -20,17 +20,17 @@
 
 .dashboard__header {
   text-align: center;
-  margin-bottom: 5rem;
+  margin-bottom: 3.75rem;
   animation: dashboardFadeIn 0.8s ease-out;
 }
 
 .dashboard__logo {
-  font-size: 4.5rem;
-  margin-bottom: 1.5rem;
+  font-size: 4rem;
+  margin-bottom: 1.15rem;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  animation: motorcycleRide 11s linear infinite alternate;
+  animation: motorcycleRide 18s ease-in-out infinite alternate;
 }
 
 .dashboard__logo svg {
@@ -38,30 +38,26 @@
 }
 
 @keyframes motorcycleRide {
-  0%   { transform: translateX(22vw)   translateY(0px)  rotate(-3deg); }
-  12%  { transform: translateX(16vw)   translateY(-4px) rotate(-4deg); }
-  22%  { transform: translateX(11vw)   translateY(2px)  rotate(-2deg); }
-  35%  { transform: translateX(5.5vw)  translateY(-5px) rotate(-4deg); }
-  47%  { transform: translateX(0vw)    translateY(3px)  rotate(-2deg); }
-  58%  { transform: translateX(-5.5vw) translateY(-3px) rotate(-4deg); }
-  72%  { transform: translateX(-11vw)  translateY(4px)  rotate(-2deg); }
-  85%  { transform: translateX(-16vw)  translateY(-4px) rotate(-4deg); }
-  100% { transform: translateX(-22vw)  translateY(0px)  rotate(-3deg); }
+  0%   { transform: translateX(8vw)   translateY(0px)  rotate(-2deg); }
+  28%  { transform: translateX(4vw)   translateY(-3px) rotate(-3deg); }
+  50%  { transform: translateX(0vw)   translateY(2px)  rotate(-1deg); }
+  72%  { transform: translateX(-4vw)  translateY(-2px) rotate(-3deg); }
+  100% { transform: translateX(-8vw)  translateY(0px)  rotate(-2deg); }
 }
 
 .dashboard__title {
   font-family: 'Black Han Sans', sans-serif;
-  font-size: 4rem;
+  font-size: 3.65rem;
   font-weight: 400; /* Black Han Sans는 단일 두께 */
   letter-spacing: -0.02em;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   color: var(--brand-ink);
   line-height: 1.1;
 }
 
 .dashboard__subtitle {
   font-family: 'Gowun Batang', serif;
-  font-size: 1.4rem;
+  font-size: 1.28rem;
   color: #555;
   font-weight: 400;
   font-style: italic;
@@ -100,13 +96,13 @@
 
 /* 섹션 레이아웃 */
 .dashboard__section {
-  margin-bottom: 4rem;
+  margin-bottom: 3.25rem;
 }
 
 .dashboard__section-title {
-  font-size: 1.5rem;
+  font-size: 1.38rem;
   font-weight: 700;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.15rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -125,22 +121,22 @@
 .dashboard__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 /* 카드 UI */
 .dash-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  padding: 2rem;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(207, 214, 226, 0.75);
+  border-radius: 12px;
+  padding: 1.65rem;
   text-decoration: none;
   color: inherit;
   transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 3px 14px rgba(17, 20, 24, 0.04);
   position: relative;
   overflow: hidden;
 }
@@ -158,10 +154,10 @@
 }
 
 .dash-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-4px);
   background: #ffffff;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
-  border-color: var(--accent-light);
+  box-shadow: 0 10px 24px rgba(17, 20, 24, 0.08);
+  border-color: rgba(var(--accent-rgb), 0.28);
 }
 
 .dash-card:hover::after {
@@ -211,7 +207,7 @@
 
 /* 도구 카드 (색상 변형) */
 .dash-card--tool {
-  background: rgba(var(--accent-rgb), 0.03);
+  background: rgba(var(--accent-rgb), 0.04);
 }
 
 .dash-card--print {
@@ -219,7 +215,7 @@
 }
 
 .dash-card--game {
-  background: rgba(255, 245, 230, 0.6);
+  background: rgba(255, 247, 237, 0.72);
 }
 
 /* 애니메이션 */
@@ -249,7 +245,7 @@
   height: 100%;
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 20px;
+  border-radius: 12px;
   z-index: -1;
   transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -263,7 +259,7 @@
   height: 100%;
   background: rgba(255, 255, 255, 0.35);
   border: 1px solid rgba(0, 0, 0, 0.03);
-  border-radius: 20px;
+  border-radius: 12px;
   z-index: -2;
 }
 
@@ -294,7 +290,7 @@
   opacity: 1;
 }
 
-.lesson-group:hover .lesson-group--multi .lesson-group__card-wrapper::before {
+.lesson-group--multi:hover .lesson-group__card-wrapper::before {
   transform: translateY(6px);
 }
 
@@ -317,7 +313,8 @@
               opacity 0.25s ease;
 }
 
-.lesson-group:hover .lesson-group__subs {
+.lesson-group:hover .lesson-group__subs,
+.lesson-group:focus-within .lesson-group__subs {
   max-height: 400px;
   opacity: 1;
   transition: max-height 0.45s cubic-bezier(0.23, 1, 0.32, 1),
@@ -333,7 +330,7 @@
   margin-top: 0.5rem;
   text-decoration: none;
   color: var(--text);
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.6);
   transition: background 0.2s, border-color 0.2s, transform 0.2s;
@@ -372,8 +369,38 @@
   transform: translateX(3px);
 }
 
-@media (max-width: 600px) {
-  .dashboard { padding: 3rem 1rem; }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard__logo,
+  .dashboard__header,
+  .dash-card,
+  .lesson-group__subs,
+  .lesson-sub-card {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard { padding: 2.5rem 1rem; }
+  .dashboard__header { margin-bottom: 2.75rem; }
+  .dashboard__logo { margin-bottom: 0.9rem; }
   .dashboard__title { font-size: 2.25rem; }
+  .dashboard__subtitle {
+    font-size: 1.05rem;
+    padding: 0 0.35rem;
+  }
+  .dashboard__source {
+    padding: 0;
+    text-align: center;
+  }
   .dashboard__grid { grid-template-columns: 1fr; }
+  .dashboard__section { margin-bottom: 2.5rem; }
+  .dash-card { padding: 1.35rem; }
+  .lesson-group__subs {
+    max-height: none;
+    opacity: 1;
+  }
+  .lesson-group__card .dash-card__arrow {
+    transform: none;
+  }
 }
