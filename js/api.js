@@ -17,9 +17,9 @@ export async function loadExternalAssets() {
       const csvText = await response.text();
       
       parseCSV(csvText).forEach(columns => {
-        if (columns.length < 4) return;
-        const key = columns[1].trim();
-        const assetUrl = columns[3].trim();
+        if (columns.length < 2) return;
+        const key = columns[0].trim();
+        const assetUrl = columns[1].trim();
         
         if (!key || !assetUrl || key === "JSON 상 호칭" || key === "JSON 코드") return;
         app.lesson.assets[key] = assetUrl;
