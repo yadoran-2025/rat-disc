@@ -49,8 +49,9 @@
   --concept-border: #5A6372;
   --concept-text: #111418;
 
-  /* 타이포 — 제목: Pretendard / 본문: Noto Serif KR */
-  --font-serif: "Noto Serif KR", "Nanum Myeongjo", serif;
+  /* 타이포 — 디스플레이: Black Han Sans / 본문: Gowun Batang */
+  --font-display: "Black Han Sans", sans-serif;
+  --font-serif: "Gowun Batang", "Noto Serif KR", "Nanum Myeongjo", serif;
   --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 
   /* 크기 */
