@@ -11,6 +11,32 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+}
+
+.dashboard__about-link {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 2;
+  border: 1px solid rgba(207, 214, 226, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--accent-deep);
+  padding: 0.42rem 0.78rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(17, 20, 24, 0.05);
+  backdrop-filter: blur(6px);
+}
+
+.dashboard__about-link:hover {
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .dashboard__inner {
@@ -395,6 +421,10 @@
   }
   .dashboard__grid { grid-template-columns: 1fr; }
   .dashboard__section { margin-bottom: 2.5rem; }
+  .dashboard__about-link {
+    top: 0.85rem;
+    right: 0.85rem;
+  }
   .dash-card { padding: 1.35rem; }
   .lesson-group__subs {
     max-height: none;

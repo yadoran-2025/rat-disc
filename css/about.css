@@ -1,0 +1,356 @@
+.about {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(230, 238, 255, 0.82), rgba(255, 255, 255, 0) 22rem),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  padding: 2rem;
+}
+
+.about__inner {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+}
+
+.about__header {
+  padding: 2rem 0 2.75rem;
+}
+
+.about__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.about__back {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-deep);
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.about__back::before {
+  content: "←";
+  margin-right: 0.45rem;
+}
+
+.about__manage {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(207, 214, 226, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--accent-deep);
+  padding: 0.42rem 0.78rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(17, 20, 24, 0.05);
+}
+
+.about__back:hover,
+.about__manage:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.about__eyebrow {
+  margin: 0 0 0.45rem;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.about__title {
+  color: var(--brand-ink);
+  font-family: "Black Han Sans", var(--font-sans);
+  font-size: clamp(2.4rem, 8vw, 4.4rem);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.about__intro {
+  max-width: 680px;
+  margin: 1.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 1.08rem;
+  line-height: 1.65;
+}
+
+.about__status,
+.about__notice {
+  margin-top: 3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.about__notice h1,
+.about__notice h2 {
+  margin-bottom: 0.6rem;
+  color: var(--brand-ink);
+}
+
+.about__notice p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.member-list {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 4rem;
+}
+
+.member-card {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) minmax(16rem, 0.45fr);
+  gap: 1.35rem;
+  align-items: start;
+  min-width: 0;
+  border: 1px solid rgba(207, 214, 226, 0.82);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1.5rem;
+  box-shadow: 0 6px 18px rgba(17, 20, 24, 0.05);
+  scroll-margin-top: 1rem;
+}
+
+.member-card:focus {
+  outline: 3px solid rgba(var(--accent-rgb), 0.22);
+  outline-offset: 4px;
+}
+
+.member-card__head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.member-card__avatar {
+  width: 7rem;
+  height: 7rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius);
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--brand-soft);
+}
+
+.member-card__avatar--fallback {
+  display: grid;
+  place-items: center;
+  color: var(--brand-ink);
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.member-card__profile {
+  min-width: 0;
+}
+
+.member-card__name {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 1.32rem;
+}
+
+.member-card__role {
+  margin: 0.25rem 0 0;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.member-card__career {
+  margin: 0.9rem 0 0;
+}
+
+.member-card__career h3 {
+  margin-bottom: 0.35rem;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.member-card__career ul {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.member-card__career p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.member-card__summary {
+  margin: 0.9rem 0 0;
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.member-card__bio {
+  margin: 0.7rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.member-card__tags,
+.member-card__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.member-card__tags span {
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  padding: 0.24rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.member-card__links a {
+  color: var(--accent-deep);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.member-card__links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.member-lessons {
+  margin: 0;
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--border);
+}
+
+.member-lessons__title {
+  margin-bottom: 0.65rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.member-lessons__list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-lessons__list a {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  padding: 0.62rem 0.72rem;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+
+.member-lessons__list a:hover {
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: var(--accent-light);
+  transform: translateY(-1px);
+}
+
+.member-lessons__group,
+.member-lessons__name {
+  display: block;
+}
+
+.member-lessons__group {
+  margin-bottom: 0.14rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.member-lessons__name {
+  color: var(--brand-ink);
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.member-lessons__missing {
+  display: block;
+  margin-top: 0.18rem;
+  color: #b45309;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.member-lessons__empty {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .member-card {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
+  .member-card__avatar {
+    width: 5.5rem;
+    height: 5.5rem;
+  }
+
+  .member-lessons {
+    grid-column: 1 / -1;
+    padding: 1rem 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 760px) {
+  .about {
+    padding: 1.25rem;
+  }
+
+  .about__header {
+    padding-top: 1.25rem;
+  }
+
+  .about__nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .member-card {
+    grid-template-columns: 1fr;
+    padding: 1.2rem;
+  }
+
+  .member-card__avatar {
+    width: 5rem;
+    height: 5rem;
+  }
+}

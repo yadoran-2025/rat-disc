@@ -82,6 +82,33 @@ export function formatInline(text) {
 }
 
 /**
+ * 텍스트 자료 컷아웃 문법 파싱
+ * - 첫 줄 `## 제목` -> headline
+ * - 본문 중 `---` 단독 줄 이후 -> source
+ */
+export function parseTextCutoutContent(text) {
+  const clean = String(text ?? "").trim().replace(/\r\n/g, "\n");
+  const parts = clean.split(/\n---\n/);
+  const mainPart = (parts[0] || "").trim();
+  const source = parts.slice(1).join("\n---\n").trim() || null;
+  const lines = mainPart.split("\n");
+  let headline = null;
+  let bodyLines = lines;
+
+  if (lines[0] && /^##\s?/.test(lines[0])) {
+    headline = lines[0].replace(/^##\s?/, "").trim();
+    bodyLines = lines.slice(1);
+    while (bodyLines.length && !bodyLines[0].trim()) bodyLines.shift();
+  }
+
+  return {
+    headline,
+    body: bodyLines.join("\n").trim(),
+    source,
+  };
+}
+
+/**
  * HTML 이스케이프
  */
 export function escapeHtml(s) {

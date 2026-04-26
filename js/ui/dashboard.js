@@ -17,6 +17,7 @@ export async function showDashboard() {
 
   const container = document.createElement("div");
   container.className = "dashboard";
+  container.innerHTML = `<a class="dashboard__about-link" href="about.html">ABOUT US</a>`;
 
   const inner = document.createElement("div");
   inner.className = "dashboard__inner";

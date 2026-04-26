@@ -1,21 +1,36 @@
 import { app } from "./state.js";
-import { parseCSV, SHEET_URLS } from "./api.js";
+import { ASSET_SHEET_URLS, parseCSV } from "./api.js";
 import { renderBlock, renderDivider } from "./ui/blocks.js";
 import { escapeHtml } from "./utils.js";
 
 const BLOCK_TYPES = ["단락", "소제목", "구분선", "사례", "발문", "개념", "이미지곁글", "미디어", "기출문제", "접이식", "요약"];
 const LOCAL_CACHE_KEY = "lessonAuthorDraft_v1";
+const EXTERNAL_ASSETS_CACHE_KEY = "externalAssets_v1";
+// Paste the deployed Google Apps Script Web App /exec URL here.
+const ASSET_UPLOAD_ENDPOINT = "https://script.google.com/macros/s/AKfycbw_DJp0xMarEDwnQnpO0nEcQMhWygsMiBf_HGgnauh_ViU-KLmI1pG8ZI_CdNMNOi8P/exec";
 
 const state = {
   lesson: loadLocalDraft() || createBlankLesson(),
   currentSection: 0,
   showAllPreview: false,
   assets: [],
+  assetRows: { media: [], exam: [] },
   assetMap: {},
   assetTarget: null,
   assetMode: "single",
+  assetSource: "media",
   assetSelection: new Set(),
-  dragBlock: null,
+  examSubject: "경제",
+  examGroupOpen: new Set(),
+  examSubgroupOpen: new Set(),
+  upload: {
+    file: null,
+    dataUrl: "",
+    key: "",
+    status: "",
+    busy: false,
+  },
+  blockSort: null,
   openDetails: new Map(),
 };
 
@@ -103,12 +118,15 @@ function renderShell() {
 
       <section class="panel asset-search" id="asset-search">
         <div class="panel__head">
-          <h2 class="panel__title">외부자료 키 검색</h2>
+          <h2 class="panel__title">외부자료 추가</h2>
           <button class="btn btn--sm" type="button" data-action="close-assets">닫기</button>
         </div>
         <div class="asset-search__body">
+          <div class="asset-target-note" id="asset-target-note"></div>
+          <div class="asset-source-tabs" id="asset-source-tabs"></div>
           <input class="asset-search__input" id="asset-query" type="search" placeholder="키, 설명, 키워드로 검색" autocomplete="off">
           <div class="asset-search__bar" id="asset-search-bar"></div>
+          <div id="asset-upload-panel"></div>
           <div class="asset-results" id="asset-results"></div>
         </div>
       </section>
@@ -119,6 +137,10 @@ function renderShell() {
 function bindRootEvents() {
   root.addEventListener("input", event => {
     const target = event.target;
+    if (target.matches("[data-upload-field]")) {
+      writeUploadField(target);
+      return;
+    }
     if (target.matches("[data-path]") && !target.dataset.path.endsWith(".__commonImageInput")) {
       writeField(target);
       refreshOutputs();
@@ -135,47 +157,35 @@ function bindRootEvents() {
     }
   });
 
-  root.addEventListener("dragstart", event => {
-    const card = event.target.closest(".block-card[data-block]");
-    if (!card) return;
-    state.dragBlock = {
-      section: Number(card.dataset.section),
-      block: Number(card.dataset.block),
-    };
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", JSON.stringify(state.dragBlock));
-    card.classList.add("is-dragging");
-  });
-
-  root.addEventListener("dragend", event => {
-    event.target.closest(".block-card")?.classList.remove("is-dragging");
-    state.dragBlock = null;
-    clearBlockDropIndicators();
-  });
-
-  root.addEventListener("dragover", event => {
-    const blockList = event.target.closest(".section-card__blocks[data-section]");
-    if (!blockList || !state.dragBlock) return;
+  root.addEventListener("paste", event => {
+    const pasteZone = event.target.closest?.(".asset-upload");
+    if (!pasteZone) return;
+    const file = getClipboardImage(event.clipboardData);
+    if (!file) {
+      setUploadStatus("No image found in the clipboard.");
+      return;
+    }
     event.preventDefault();
-    clearBlockDropIndicators();
-    const { card, position } = getBlockDropTarget(event, blockList);
-    if (card) card.classList.add(position === "before" ? "is-drop-before" : "is-drop-after");
-    else blockList.classList.add("is-drop-empty");
+    prepareUploadFile(file);
   });
 
-  root.addEventListener("drop", event => {
-    const blockList = event.target.closest(".section-card__blocks[data-section]");
-    if (!blockList) return;
-    event.preventDefault();
-    const from = state.dragBlock || JSON.parse(event.dataTransfer.getData("text/plain") || "{}");
-    const toSection = Number(blockList.dataset.section);
-    if (from.section !== toSection) return;
-    const insertIdx = getBlockInsertIndex(event, blockList);
-    moveBlockTo(from.section, from.block, insertIdx);
-    clearBlockDropIndicators();
-    renderEditor();
-    refreshOutputs();
+  root.addEventListener("pointerdown", event => {
+    const handle = event.target.closest?.(".drag-handle");
+    if (!handle) return;
+    startBlockSort(event, handle);
   });
+
+  document.addEventListener("pointermove", event => {
+    updateBlockSort(event);
+  }, true);
+
+  document.addEventListener("pointerup", event => {
+    finishBlockSort(event);
+  }, true);
+
+  document.addEventListener("pointercancel", event => {
+    cancelBlockSort(event);
+  }, true);
 
   root.addEventListener("toggle", event => {
     const details = event.target.closest("details[data-detail-id]");
@@ -188,6 +198,10 @@ function bindRootEvents() {
     if (target.id === "preview-all") {
       state.showAllPreview = target.checked;
       refreshOutputs();
+      return;
+    }
+    if (target.matches("[data-action='toggle-exam-asset']")) {
+      handleExamAssetToggle(target);
       return;
     }
     if (target.matches("[data-path]")) {
@@ -209,7 +223,7 @@ function bindRootEvents() {
   });
 
   root.addEventListener("click", event => {
-    if (event.target.closest("button, select, input, textarea, a") && event.target.closest("summary")) {
+    if (event.target.closest("button, select, input, textarea, a, .drag-handle") && event.target.closest("summary")) {
       event.preventDefault();
       event.stopPropagation();
     }
@@ -303,12 +317,38 @@ function bindRootEvents() {
       refreshOutputs();
     } else if (action === "pick-asset") {
       state.assetTarget = path;
-      openAssetSearch("single");
+      openAssetSearch("single", getDefaultAssetSource(path));
     } else if (action === "pick-assets") {
       state.assetTarget = path;
-      openAssetSearch("multi");
+      openAssetSearch("multi", getDefaultAssetSource(path));
+    } else if (action === "pick-exam-items") {
+      state.assetTarget = path;
+      openAssetSearch("quiz-items", "exam");
+    } else if (action === "choose-asset-source") {
+      state.assetSource = button.dataset.source || "media";
+      state.assetSelection.clear();
+      if (state.assetSource === "exam") state.examSubject = state.examSubject || "경제";
+      const queryInput = document.getElementById("asset-query");
+      if (queryInput) queryInput.value = "";
+      renderAssetResults();
+    } else if (action === "choose-exam-subject") {
+      state.examSubject = button.dataset.subject || "경제";
+      renderAssetResults();
+    } else if (action === "toggle-exam-session") {
+      toggleExamOpenState(state.examGroupOpen, button.dataset.group);
+      renderAssetResults();
+    } else if (action === "toggle-exam-group") {
+      toggleExamOpenState(state.examGroupOpen, button.dataset.group);
+      renderAssetResults();
+    } else if (action === "toggle-exam-subgroup") {
+      toggleExamOpenState(state.examSubgroupOpen, button.dataset.group);
+      renderAssetResults();
     } else if (action === "choose-asset") {
       if (state.assetMode === "multi") {
+        toggleAssetSelection(button.dataset.key);
+        return;
+      }
+      if (state.assetMode === "quiz-items") {
         toggleAssetSelection(button.dataset.key);
         return;
       }
@@ -319,6 +359,11 @@ function bindRootEvents() {
       toast("외부자료 키를 넣었습니다.");
     } else if (action === "apply-assets") {
       applyAssetSelection();
+    } else if (action === "upload-asset") {
+      uploadClipboardAsset();
+    } else if (action === "clear-upload-asset") {
+      clearUploadAsset();
+      renderUploadPanel();
     } else if (action === "close-assets") {
       closeAssetSearch();
     }
@@ -390,14 +435,16 @@ function renderSectionEditor() {
 function renderBlockEditor(block, sectionIdx, blockIdx, basePath) {
   const detail = getDetailState(block, "block");
   return `
-    <details class="block-card" data-detail-id="${detail.id}" data-section="${sectionIdx}" data-block="${blockIdx}" draggable="true" ${detail.open ? "open" : ""}>
+    <details class="block-card" data-detail-id="${detail.id}" data-section="${sectionIdx}" data-block="${blockIdx}" ${detail.open ? "open" : ""}>
       <summary class="block-card__head">
         <div class="block-card__type">
           <span class="drag-handle" title="드래그해서 순서 변경" aria-label="드래그해서 순서 변경">⋮⋮</span>
-          <strong>#${blockIdx + 1}</strong>
-          <select data-action="change-block-type" data-section="${sectionIdx}" data-block="${blockIdx}">
-            ${BLOCK_TYPES.map(type => `<option value="${type}" ${block.type === type ? "selected" : ""}>${type}</option>`).join("")}
-          </select>
+          <strong class="block-card__index">#${blockIdx + 1}</strong>
+          <span class="block-type-select">
+            <select data-action="change-block-type" data-section="${sectionIdx}" data-block="${blockIdx}">
+              ${BLOCK_TYPES.map(type => `<option value="${type}" ${block.type === type ? "selected" : ""}>${type}</option>`).join("")}
+            </select>
+          </span>
         </div>
         <div class="block-card__actions">
           <button class="btn btn--sm" type="button" data-action="duplicate-block" data-section="${sectionIdx}" data-block="${blockIdx}">복제</button>
@@ -585,6 +632,9 @@ function renderArrayItem(item, idx, path, kind) {
       <div class="form-grid">
         ${assetInput("image", "문제 이미지 키", `${itemPath}.image`)}
         ${textareaField("answer", "정답/해설", `${itemPath}.answerText`, "줄마다 항목을 적으면 배열로 저장됩니다.")}
+      </div>
+      <div class="field__hint" style="margin-top:0.5rem;">
+        <button class="btn btn--sm" type="button" data-action="pick-exam-items" data-path="${path}">기출문제 여러 개 추가</button>
       </div>
     `;
   } else if (kind === "childBlock") {
@@ -861,13 +911,13 @@ function pruneEmpty(value) {
 }
 
 async function loadAssetIndex() {
-  const results = await Promise.allSettled(
-    SHEET_URLS.map(url => fetch(url, { cache: "no-store" }).then(res => res.text()))
-  );
-  const rows = [];
+  const entries = Object.entries(ASSET_SHEET_URLS);
+  const results = await Promise.allSettled(entries.map(([, url]) => fetch(url, { cache: "no-store" }).then(res => res.text())));
+  const rowsBySource = { media: [], exam: [] };
   const map = {};
-  results.forEach(result => {
+  results.forEach((result, resultIdx) => {
     if (result.status !== "fulfilled") return;
+    const source = entries[resultIdx][0];
     parseCSV(result.value).forEach((columns, idx) => {
       if (idx === 0 || columns.length < 2) return;
       const key = (columns[0] || "").trim();
@@ -876,20 +926,26 @@ async function loadAssetIndex() {
       const reason = normalizeSheetText(columns[4] || "");
       if (!key || !url || key === "JSON 상 호칭" || key === "JSON 코드") return;
       map[key] = url;
-      rows.push({ key, url, keywords, reason });
+      rowsBySource[source].push({ key, url, keywords, reason, source });
     });
   });
-  state.assets = rows;
+  state.assetRows = rowsBySource;
+  state.assets = [...rowsBySource.media, ...rowsBySource.exam];
   state.assetMap = map;
   renderAssetResults();
   refreshOutputs();
 }
 
-function openAssetSearch(mode = "single") {
+function openAssetSearch(mode = "single", source = "media") {
   state.assetMode = mode;
+  state.assetSource = source;
   state.assetSelection = new Set();
   document.getElementById("asset-search").classList.add("is-open");
-  document.getElementById("asset-query").focus();
+  const queryInput = document.getElementById("asset-query");
+  if (queryInput) {
+    queryInput.value = "";
+    if (source !== "upload") queryInput.focus();
+  }
   renderAssetResults();
 }
 
@@ -897,23 +953,41 @@ function closeAssetSearch() {
   document.getElementById("asset-search").classList.remove("is-open");
   state.assetTarget = null;
   state.assetMode = "single";
+  state.assetSource = "media";
   state.assetSelection.clear();
+  const queryInput = document.getElementById("asset-query");
+  if (queryInput) queryInput.value = "";
 }
 
 function renderAssetResults() {
   const box = document.getElementById("asset-results");
   const bar = document.getElementById("asset-search-bar");
+  const tabs = document.getElementById("asset-source-tabs");
+  const note = document.getElementById("asset-target-note");
+  const queryInput = document.getElementById("asset-query");
   if (!box) return;
+  renderAssetSourceTabs(tabs);
+  if (note) note.textContent = `현재 대상: ${getAssetTargetLabel()}`;
+  if (queryInput) {
+    queryInput.hidden = state.assetSource === "upload";
+    queryInput.placeholder = state.assetSource === "exam" ? "문제 키, 과목, 연월로 검색" : "키, 설명, 키워드로 검색";
+  }
+  renderUploadPanel();
+  if (state.assetSource === "upload") {
+    if (bar) bar.innerHTML = `<span>클립보드 이미지를 붙여넣거나 파일을 선택해 새 자료를 등록합니다.</span>`;
+    box.innerHTML = "";
+    return;
+  }
   if (bar) {
-    bar.innerHTML = state.assetMode === "multi"
-      ? `<span>${state.assetSelection.size}개 선택됨</span><button class="btn btn--sm btn--primary" type="button" data-action="apply-assets">선택 추가</button>`
+    bar.innerHTML = state.assetMode === "multi" || state.assetMode === "quiz-items"
+      ? `<span>${state.assetSelection.size}개 선택됨</span><button class="btn btn--sm btn--primary" type="button" data-action="apply-assets" ${state.assetSelection.size ? "" : "disabled"}>선택 추가</button>`
       : `<span>키를 선택하면 현재 입력칸에 바로 들어갑니다.</span>`;
   }
-  const query = (document.getElementById("asset-query")?.value || "").toLowerCase().trim();
-  const rows = state.assets
-    .filter(row => !query || [row.key, row.reason, ...row.keywords].join(" ").toLowerCase().includes(query))
-    .slice(0, 80);
-  if (!state.assets.length) {
+  const query = (queryInput?.value || "").toLowerCase().trim();
+  const sourceRows = state.assetRows[state.assetSource] || [];
+  const filteredRows = sourceRows.filter(row => !query || getAssetSearchText(row).includes(query));
+  const rows = filteredRows;
+  if (!sourceRows.length) {
     box.innerHTML = `<p class="field__hint">외부자료 목록을 불러오는 중입니다.</p>`;
     return;
   }
@@ -921,7 +995,26 @@ function renderAssetResults() {
     box.innerHTML = `<p class="field__hint">검색 결과가 없습니다.</p>`;
     return;
   }
-  box.innerHTML = rows.map(row => `
+  box.innerHTML = state.assetSource === "exam" ? renderExamAssetResults(rows, Boolean(query)) : renderMediaAssetResults(rows);
+}
+
+function renderAssetSourceTabs(tabs) {
+  if (!tabs) return;
+  const sources = [
+    ["media", "이미지·동영상 DB", "기존 자료"],
+    ["exam", "기출문제 DB", "문제 자료"],
+    ["upload", "새 자료 등록", "클립보드"],
+  ];
+  tabs.innerHTML = sources.map(([source, title, desc]) => `
+    <button class="asset-source-tab ${state.assetSource === source ? "is-active" : ""}" type="button" data-action="choose-asset-source" data-source="${source}">
+      <strong>${title}</strong>
+      <span>${desc}</span>
+    </button>
+  `).join("");
+}
+
+function renderMediaAssetResults(rows) {
+  return rows.map(row => `
     <button class="asset-result ${state.assetSelection.has(row.key) ? "is-selected" : ""}" type="button" data-action="choose-asset" data-key="${escapeAttr(row.key)}">
       <span class="asset-result__thumb">${renderAssetThumb(row)}</span>
       <span class="asset-result__content">
@@ -930,6 +1023,460 @@ function renderAssetResults() {
       </span>
     </button>
   `).join("");
+}
+
+function renderExamAssetResults(rows, forceOpen = false) {
+  const subjects = groupExamRowsBySubjectThenPrefix(rows);
+  const orderedSubjects = getOrderedExamSubjects(subjects);
+  if (!orderedSubjects.length) return `<p class="field__hint">검색 결과가 없습니다.</p>`;
+  if (!orderedSubjects.includes(state.examSubject)) state.examSubject = orderedSubjects[0];
+  const currentSubject = state.examSubject || orderedSubjects[0];
+  const sessions = subjects[currentSubject] || {};
+  return `
+    <div class="asset-exam-subject-tabs">
+      ${orderedSubjects.map(subject => renderExamSubjectTab(subject, subjects[subject] || {}, currentSubject)).join("")}
+    </div>
+    <div class="asset-exam-session-list">
+      ${Object.entries(sessions).map(([prefix, items]) => renderExamSession(prefix, currentSubject, items, forceOpen)).join("")}
+    </div>
+  `;
+}
+
+function renderExamSubjectTab(subject, sessions, currentSubject) {
+  const items = Object.values(sessions).flat();
+  const selected = countSelectedAssets(items);
+  return `
+    <button class="asset-exam-subject-tab ${subject === currentSubject ? "is-active" : ""}" type="button" data-action="choose-exam-subject" data-subject="${escapeAttr(subject)}">
+      <strong>${escapeHtml(subject)}</strong>
+      <span>${selected ? `${selected}/` : ""}${items.length}개</span>
+    </button>
+  `;
+}
+
+function renderExamSession(prefix, subject, items, forceOpen) {
+  const groupId = `session:${subject}:${prefix}`;
+  const open = forceOpen || isExamOpen(state.examGroupOpen, groupId);
+  const selected = countSelectedAssets(items);
+  return `
+    <div class="asset-exam-session">
+      <button class="asset-exam-session__head ${open ? "is-open" : ""}" type="button" data-action="toggle-exam-session" data-group="${escapeAttr(groupId)}">
+        <span class="asset-exam-toggle" aria-hidden="true"></span>
+        <strong>${escapeHtml(formatExamPrefix(prefix))}</strong>
+        <span>${selected ? `${selected}/` : "0/"}${items.length}개 선택</span>
+      </button>
+      ${open ? `
+        <div class="asset-exam-list">
+          ${items.map(row => renderExamAssetItem(row)).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderExamAssetItem(row) {
+  const selected = state.assetSelection.has(row.key);
+  const meta = row.reason || row.keywords.join(", ");
+  return `
+    <label class="asset-exam-item ${selected ? "is-selected" : ""}">
+      <input type="checkbox" data-action="toggle-exam-asset" value="${escapeAttr(row.key)}" ${selected ? "checked" : ""}>
+      <span class="asset-exam-item__check" aria-hidden="true"></span>
+      <span class="asset-exam-item__body">
+        <span class="asset-exam-item__key">${escapeHtml(row.key)}</span>
+        ${meta ? `<span class="asset-exam-item__meta">${escapeHtml(meta)}</span>` : ""}
+      </span>
+    </label>
+  `;
+}
+
+function groupExamRowsBySubjectThenPrefix(rows) {
+  const grouped = rows.reduce((acc, row) => {
+    const { tag, prefix } = parseExamKeyMeta(row.key);
+    acc[tag] ||= {};
+    acc[tag][prefix] ||= [];
+    acc[tag][prefix].push(row);
+    return acc;
+  }, {});
+  Object.values(grouped).forEach(sessions => {
+    Object.keys(sessions).forEach(prefix => {
+      sessions[prefix].sort((a, b) => a.key.localeCompare(b.key));
+    });
+  });
+  Object.keys(grouped).forEach(subject => {
+    grouped[subject] = Object.fromEntries(Object.entries(grouped[subject]).sort(([a], [b]) => b.localeCompare(a)));
+  });
+  return grouped;
+}
+
+function getOrderedExamSubjects(subjects) {
+  const preferred = ["경제", "사문", "정법"];
+  return Object.keys(subjects).sort((a, b) => {
+    const ai = preferred.indexOf(a);
+    const bi = preferred.indexOf(b);
+    if (ai !== -1 || bi !== -1) {
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    }
+    return a.localeCompare(b);
+  });
+}
+
+function isExamOpen(store, id) {
+  return !store.has(id);
+}
+
+function toggleExamOpenState(store, id) {
+  if (!id) return;
+  if (store.has(id)) store.delete(id);
+  else store.add(id);
+}
+
+function countSelectedAssets(items) {
+  return items.filter(item => state.assetSelection.has(item.key)).length;
+}
+
+function parseExamKeyMeta(key) {
+  const tag = key.match(/\[(.+?)\]/)?.[1] || "기타";
+  const prefix = key.match(/^(\d{4})/)?.[1] || "기타";
+  return { tag, prefix };
+}
+
+function formatExamPrefix(prefix) {
+  if (prefix === "기타") return "기타";
+  return `'${prefix.slice(0, 2)}년 ${Number(prefix.slice(2, 4))}월`;
+}
+
+function getAssetSearchText(row) {
+  const meta = row.source === "exam" ? Object.values(parseExamKeyMeta(row.key)).join(" ") : "";
+  return [row.key, row.url, row.reason, meta, ...row.keywords].join(" ").toLowerCase();
+}
+
+function legacyRenderUploadPanel() {
+  const panel = document.getElementById("asset-upload-panel");
+  if (!panel) return;
+  if (state.assetSource !== "upload") {
+    panel.innerHTML = "";
+    return;
+  }
+  const upload = state.upload;
+  const targetLabel = getAssetTargetLabel();
+  const endpointReady = Boolean(ASSET_UPLOAD_ENDPOINT.trim());
+  const preview = upload.dataUrl
+    ? `<img class="asset-upload__preview-img" src="${escapeAttr(upload.dataUrl)}" alt="">`
+    : `<span class="asset-upload__placeholder">이미지를 여기에 붙여넣으세요</span>`;
+  panel.innerHTML = `
+    <div class="asset-upload" tabindex="0">
+      <div class="asset-upload__head">
+        <strong>클립보드 새 자료 등록</strong>
+        <span>${escapeHtml(targetLabel)}</span>
+      </div>
+      <div class="asset-upload__drop">
+        ${preview}
+      </div>
+      <div class="asset-upload__grid">
+        <label class="field">
+          <span class="field__label">Apps Script URL</span>
+          <input data-upload-field="endpoint" value="${escapeAttr(upload.endpoint)}" placeholder="https://script.google.com/macros/s/.../exec">
+        </label>
+        <label class="field">
+          <span class="field__label">JSON 키</span>
+          <input data-upload-field="key" value="${escapeAttr(upload.key)}" placeholder="asset-key">
+        </label>
+        <label class="field">
+          <span class="field__label">키워드</span>
+          <input data-upload-field="keywords" value="${escapeAttr(upload.keywords)}" placeholder="키워드1, 키워드2">
+        </label>
+        <label class="field">
+          <span class="field__label">설명 / 메모</span>
+          <input data-upload-field="reason" value="${escapeAttr(upload.reason)}" placeholder="왜 가져왔는지 짧게 메모">
+        </label>
+      </div>
+      <div class="asset-upload__actions">
+        <label class="btn btn--sm" for="asset-upload-file">파일 선택</label>
+        <input id="asset-upload-file" type="file" accept="image/*" hidden>
+        <button class="btn btn--sm btn--primary" type="button" data-action="upload-asset" ${upload.busy ? "disabled" : ""}>업로드</button>
+        <button class="btn btn--sm" type="button" data-action="clear-upload-asset">비우기</button>
+      </div>
+      <div class="asset-upload__status">${escapeHtml(upload.status || "이미지를 붙여넣거나 파일을 선택한 뒤 Drive/Sheets에 등록합니다.")}</div>
+    </div>
+  `;
+}
+
+function writeUploadField(target) {
+  const field = target.dataset.uploadField;
+  state.upload[field] = target.value;
+}
+
+function getClipboardImage(clipboardData) {
+  const items = [...(clipboardData?.items || [])];
+  const item = items.find(entry => entry.kind === "file" && entry.type.startsWith("image/"));
+  return item?.getAsFile() || null;
+}
+
+async function legacyPrepareUploadFile(file) {
+  if (!file.type.startsWith("image/")) {
+    setUploadStatus("Only image files can be uploaded.");
+    return;
+  }
+  state.upload.file = file;
+  state.upload.dataUrl = await readFileAsDataUrl(file);
+  if (!state.upload.key) state.upload.key = createAssetKey(file);
+  state.upload.status = `${file.type || "image"} ready (${Math.round(file.size / 1024)} KB).`;
+  renderUploadPanel();
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function legacyCreateAssetKey(file) {
+  const base = (state.lesson.id || "asset")
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "") || "asset";
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+  const ext = (file.type.split("/")[1] || "image").replace("jpeg", "jpg");
+  return `${base}-${stamp}.${ext}`;
+}
+
+async function legacyUploadClipboardAsset() {
+  const upload = state.upload;
+  const endpoint = upload.endpoint.trim();
+  const key = upload.key.trim();
+  if (!endpoint) return setUploadStatus("Set the Apps Script Web App URL first.");
+  if (!upload.file || !upload.dataUrl) return setUploadStatus("Paste or choose an image first.");
+  if (!key) return setUploadStatus("Enter a JSON key first.");
+
+  upload.busy = true;
+  setUploadStatus("Uploading image...");
+  try {
+    const imageBase64 = upload.dataUrl.split(",")[1] || "";
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        key,
+        imageBase64,
+        mimeType: upload.file.type || "image/png",
+        keywords: upload.keywords.trim(),
+        reason: upload.reason.trim(),
+      }),
+    });
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(text || "Upload endpoint returned a non-JSON response.");
+    }
+    if (!response.ok || !data.ok) throw new Error(data.error || `Upload failed (${response.status}).`);
+    const driveUrl = data.driveUrl || data.url;
+    if (!driveUrl) throw new Error("Upload response did not include driveUrl.");
+    upsertAssetRow({
+      key: data.key || key,
+      url: driveUrl,
+      keywords: splitKeywords(upload.keywords),
+      reason: upload.reason.trim(),
+    });
+    clearExternalAssetCache();
+    insertUploadedAssetKey(data.key || key);
+    upload.key = "";
+    upload.keywords = "";
+    upload.reason = "";
+    upload.file = null;
+    upload.dataUrl = "";
+    setUploadStatus("Uploaded and added to the selected field.");
+    renderEditor();
+    refreshOutputs();
+    renderAssetResults();
+  } catch (err) {
+    setUploadStatus(err.message || "Upload failed.");
+  } finally {
+    upload.busy = false;
+    renderUploadPanel();
+  }
+}
+
+function upsertAssetRow(row) {
+  state.assetMap[row.key] = row.url;
+  const nextRow = { ...row, source: "media" };
+  const mediaRows = state.assetRows.media;
+  const existing = mediaRows.find(asset => asset.key === row.key);
+  if (existing) Object.assign(existing, nextRow);
+  else mediaRows.unshift(nextRow);
+  state.assets = [...state.assetRows.media, ...state.assetRows.exam];
+}
+
+function splitKeywords(value) {
+  return String(value || "").split(",").map(item => item.trim()).filter(Boolean);
+}
+
+function insertUploadedAssetKey(key) {
+  if (!state.assetTarget) return;
+  if (state.assetTarget.endsWith(".__commonImages")) {
+    appendCommonImages(state.assetTarget.replace(/\.__commonImages$/, ""), [key]);
+  } else if (Array.isArray(getPath(state.assetTarget))) {
+    const current = getPath(state.assetTarget);
+    if (!current.includes(key)) current.push(key);
+  } else {
+    setPath(state.assetTarget, key);
+  }
+}
+
+function clearExternalAssetCache() {
+  try {
+    sessionStorage.removeItem(EXTERNAL_ASSETS_CACHE_KEY);
+  } catch { }
+}
+
+function legacyClearUploadAsset() {
+  state.upload.file = null;
+  state.upload.dataUrl = "";
+  state.upload.key = "";
+  state.upload.keywords = "";
+  state.upload.reason = "";
+  state.upload.status = "";
+}
+
+function setUploadStatus(message) {
+  state.upload.status = message;
+  renderUploadPanel();
+}
+
+function renderUploadPanel() {
+  const panel = document.getElementById("asset-upload-panel");
+  if (!panel) return;
+  if (state.assetSource !== "upload") {
+    panel.innerHTML = "";
+    return;
+  }
+
+  const upload = state.upload;
+  const endpointReady = Boolean(ASSET_UPLOAD_ENDPOINT.trim());
+  const preview = upload.dataUrl
+    ? `<img class="asset-upload__preview-img" src="${escapeAttr(upload.dataUrl)}" alt="">`
+    : `<span class="asset-upload__placeholder">이미지를 여기에 붙여넣으세요</span>`;
+  const status = upload.status || (
+    endpointReady
+      ? "이미지를 붙여넣고 JSON KEY를 확인한 뒤 확인을 누르세요."
+      : "관리자 설정 필요: author.js의 ASSET_UPLOAD_ENDPOINT에 Apps Script /exec URL을 넣어주세요."
+  );
+
+  panel.innerHTML = `
+    <div class="asset-upload" tabindex="0">
+      <div class="asset-upload__head">
+        <strong>클립보드 새자료</strong>
+        <span>${escapeHtml(getAssetTargetLabel())}</span>
+      </div>
+      <div class="asset-upload__drop">
+        ${preview}
+      </div>
+      <div class="asset-upload__grid">
+        <label class="field">
+          <span class="field__label">JSON KEY</span>
+          <input data-upload-field="key" value="${escapeAttr(upload.key)}" placeholder="asset-key">
+        </label>
+      </div>
+      <div class="asset-upload__actions">
+        <button class="btn btn--sm btn--primary" type="button" data-action="upload-asset" ${upload.busy ? "disabled" : ""}>확인</button>
+        <button class="btn btn--sm" type="button" data-action="clear-upload-asset">초기화</button>
+      </div>
+      <div class="asset-upload__status">${escapeHtml(status)}</div>
+    </div>
+  `;
+}
+
+async function prepareUploadFile(file) {
+  if (!file.type.startsWith("image/")) {
+    setUploadStatus("이미지 파일만 업로드할 수 있습니다.");
+    return;
+  }
+  state.upload.file = file;
+  try {
+    state.upload.dataUrl = await readFileAsDataUrl(file);
+    if (!state.upload.key) state.upload.key = createAssetKey(file);
+    state.upload.status = `${file.type || "image"} 준비됨 (${Math.round(file.size / 1024)} KB).`;
+  } catch (err) {
+    state.upload.file = null;
+    state.upload.dataUrl = "";
+    state.upload.status = err?.message || "이미지를 읽지 못했습니다.";
+  }
+  renderUploadPanel();
+}
+
+function createAssetKey(file) {
+  const base = (state.lesson.id || "asset")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "") || "asset";
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+  const ext = (file.type.split("/")[1] || "image").replace("jpeg", "jpg");
+  return `${base}-${stamp}.${ext}`;
+}
+
+async function uploadClipboardAsset() {
+  const endpoint = ASSET_UPLOAD_ENDPOINT.trim();
+  const upload = state.upload;
+  const key = upload.key.trim();
+  if (!endpoint) return setUploadStatus("관리자 설정 필요: ASSET_UPLOAD_ENDPOINT에 Apps Script /exec URL을 넣어주세요.");
+  if (!upload.file || !upload.dataUrl) return setUploadStatus("이미지를 먼저 붙여넣으세요.");
+  if (!key) return setUploadStatus("JSON KEY를 입력하세요.");
+
+  upload.busy = true;
+  setUploadStatus("구글 드라이브에 올리는 중입니다...");
+  try {
+    const imageBase64 = upload.dataUrl.split(",")[1] || "";
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        key,
+        imageBase64,
+        mimeType: upload.file.type || "image/png",
+      }),
+    });
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(text || "업로드 응답을 읽지 못했습니다.");
+    }
+    if (!response.ok || !data.ok) throw new Error(data.error || `업로드 실패 (${response.status}).`);
+    const driveUrl = data.driveUrl || data.url;
+    if (!driveUrl) throw new Error("업로드 응답에 driveUrl이 없습니다.");
+
+    upsertAssetRow({
+      key: data.key || key,
+      url: driveUrl,
+      keywords: [],
+      reason: "",
+    });
+    clearExternalAssetCache();
+    insertUploadedAssetKey(data.key || key);
+    clearUploadAsset();
+    state.upload.status = "업로드했고 현재 입력칸에 JSON KEY를 넣었습니다.";
+    renderEditor();
+    refreshOutputs();
+    renderAssetResults();
+  } catch (err) {
+    setUploadStatus(err.message || "업로드에 실패했습니다.");
+  } finally {
+    upload.busy = false;
+    renderUploadPanel();
+  }
+}
+
+function clearUploadAsset() {
+  state.upload.file = null;
+  state.upload.dataUrl = "";
+  state.upload.key = "";
+  state.upload.status = "";
 }
 
 function normalizeSheetText(value) {
@@ -962,7 +1509,7 @@ function extractYoutubeId(url) {
     if (parsed.hostname === "youtu.be") return parsed.pathname.slice(1);
     const match = parsed.pathname.match(/^\/embed\/([^/?]+)/);
     if (match) return match[1];
-  } catch {}
+  } catch { }
   return "";
 }
 
@@ -972,8 +1519,41 @@ function toggleAssetSelection(key) {
   renderAssetResults();
 }
 
+function handleExamAssetToggle(target) {
+  const key = target.value;
+  if (!key) return;
+  if (state.assetMode === "single") {
+    if (!target.checked) {
+      renderAssetResults();
+      return;
+    }
+    if (state.assetTarget) setPath(state.assetTarget, key);
+    closeAssetSearch();
+    renderEditor();
+    refreshOutputs();
+    toast("기출문제 키를 넣었습니다.");
+    return;
+  }
+  if (target.checked) state.assetSelection.add(key);
+  else state.assetSelection.delete(key);
+  renderAssetResults();
+}
+
 function applyAssetSelection() {
   if (!state.assetTarget) return;
+  if (state.assetMode === "quiz-items") {
+    const list = Array.isArray(getPath(state.assetTarget)) ? getPath(state.assetTarget) : [];
+    const count = state.assetSelection.size;
+    state.assetSelection.forEach(key => {
+      if (!list.some(item => item?.image === key)) list.push({ image: key, answer: "" });
+    });
+    setPath(state.assetTarget, list);
+    closeAssetSearch();
+    renderEditor();
+    refreshOutputs();
+    toast(`${count}개 기출문제를 추가했습니다.`);
+    return;
+  }
   if (state.assetTarget.endsWith(".__commonImages")) {
     const basePath = state.assetTarget.replace(/\.__commonImages$/, "");
     const count = state.assetSelection.size;
@@ -995,6 +1575,22 @@ function applyAssetSelection() {
   renderEditor();
   refreshOutputs();
   toast(`${count}개 키를 추가했습니다.`);
+}
+
+function getDefaultAssetSource(path) {
+  return /\.items\.\d+\.image$/.test(path) ? "exam" : "media";
+}
+
+function getAssetTargetLabel() {
+  if (!state.assetTarget) return "선택된 입력칸 없음";
+  if (state.assetTarget.endsWith(".__commonImages")) return "공통 이미지";
+  if (state.assetMode === "quiz-items") return "기출문제 여러 개";
+  if (/\.items\.\d+\.image$/.test(state.assetTarget)) return "기출문제 이미지";
+  if (/\.imagePair(\.\d+)?$/.test(state.assetTarget)) return "이미지 2장 비교";
+  if (/\.images(\.\d+)?$/.test(state.assetTarget)) return "이미지 여러 장";
+  if (/\.src$/.test(state.assetTarget)) return "미디어 소스";
+  if (/\.image$/.test(state.assetTarget)) return "이미지";
+  return "외부자료";
 }
 
 function copyJson() {
@@ -1046,7 +1642,7 @@ function loadLocalDraft() {
   } catch {
     try {
       localStorage.removeItem(LOCAL_CACHE_KEY);
-    } catch {}
+    } catch { }
     return null;
   }
 }
@@ -1185,40 +1781,103 @@ function moveItem(list, index, dir) {
   list.splice(next, 0, item);
 }
 
-function clearBlockDropIndicators() {
-  root.querySelectorAll(".block-card.is-drop-before, .block-card.is-drop-after, .section-card__blocks.is-drop-empty").forEach(el => {
-    el.classList.remove("is-drop-before", "is-drop-after");
-    el.classList.remove("is-drop-empty");
-  });
+function startBlockSort(event, handle) {
+  if (event.button != null && event.button !== 0) return;
+  const card = handle.closest(".block-card[data-block]");
+  const blockList = card?.parentElement;
+  if (!card || !blockList?.matches(".section-card__blocks[data-section]")) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  cancelBlockSort();
+  const marker = document.createElement("div");
+  marker.className = "block-drop-marker";
+
+  state.blockSort = {
+    pointerId: event.pointerId,
+    handle,
+    blockList,
+    source: card,
+    sectionIdx: Number(card.dataset.section),
+    fromIdx: Number(card.dataset.block),
+    insertIdx: Number(card.dataset.block),
+    marker,
+  };
+
+  card.classList.add("is-sort-source");
+  blockList.classList.add("is-sorting");
+  document.body.classList.add("is-sorting-block");
+  handle.setPointerCapture?.(event.pointerId);
+  updateBlockSort(event);
 }
 
-function getBlockDropTarget(event, blockList) {
-  const cards = [...blockList.querySelectorAll(".block-card[data-block]:not(.is-dragging)")];
-  if (!cards.length) return { card: null, position: "after" };
-  const insertIdx = getBlockInsertIndex(event, blockList);
-  if (insertIdx <= 0) return { card: cards[0], position: "before" };
-  if (insertIdx >= cards.length) return { card: cards[cards.length - 1], position: "after" };
-  return { card: cards[insertIdx], position: "before" };
+function updateBlockSort(event) {
+  const sort = state.blockSort;
+  if (!sort || event.pointerId !== sort.pointerId) return;
+  event.preventDefault();
+  sort.insertIdx = getPointerBlockInsertIndex(event.clientY, sort.blockList, sort.fromIdx);
+  placeBlockSortMarker(sort.blockList, sort.marker, sort.insertIdx);
 }
 
-function getBlockInsertIndex(event, blockList) {
-  const cards = [...blockList.querySelectorAll(".block-card[data-block]:not(.is-dragging)")];
-  const afterCard = cards.find(card => {
+function finishBlockSort(event) {
+  const sort = state.blockSort;
+  if (!sort || event.pointerId !== sort.pointerId) return;
+  event.preventDefault();
+  const { sectionIdx, fromIdx, insertIdx, handle } = sort;
+  cleanupBlockSort();
+  handle.releasePointerCapture?.(event.pointerId);
+  if (moveBlockTo(sectionIdx, fromIdx, insertIdx)) {
+    renderEditor();
+    refreshOutputs();
+  }
+}
+
+function cancelBlockSort(event) {
+  const sort = state.blockSort;
+  if (!sort) return;
+  if (event?.pointerId != null && event.pointerId !== sort.pointerId) return;
+  cleanupBlockSort();
+}
+
+function cleanupBlockSort() {
+  const sort = state.blockSort;
+  if (!sort) return;
+  sort.source.classList.remove("is-sort-source");
+  sort.blockList.classList.remove("is-sorting");
+  sort.marker.remove();
+  document.body.classList.remove("is-sorting-block");
+  state.blockSort = null;
+}
+
+function getSortableBlockCards(blockList) {
+  return [...blockList.children].filter(el => el.matches?.(".block-card[data-block]"));
+}
+
+function getPointerBlockInsertIndex(clientY, blockList, fromIdx) {
+  const cards = getSortableBlockCards(blockList).filter(card => Number(card.dataset.block) !== fromIdx);
+  for (const card of cards) {
     const rect = card.getBoundingClientRect();
-    return event.clientY < rect.top + rect.height / 2;
-  });
-  if (!afterCard) return cards.length;
-  return Number(afterCard.dataset.block);
+    if (clientY < rect.top + rect.height / 2) return Number(card.dataset.block);
+  }
+  return getSortableBlockCards(blockList).length;
+}
+
+function placeBlockSortMarker(blockList, marker, insertIdx) {
+  const cards = getSortableBlockCards(blockList).filter(card => !card.classList.contains("is-sort-source"));
+  const beforeCard = cards.find(card => Number(card.dataset.block) >= insertIdx);
+  blockList.insertBefore(marker, beforeCard || null);
 }
 
 function moveBlockTo(sectionIdx, fromIdx, insertIdx) {
   const blocks = state.lesson.sections[sectionIdx]?.blocks;
-  if (!Array.isArray(blocks) || fromIdx < 0 || fromIdx >= blocks.length) return;
+  if (!Array.isArray(blocks) || fromIdx < 0 || fromIdx >= blocks.length) return false;
   insertIdx = Math.max(0, Math.min(insertIdx, blocks.length));
   if (fromIdx < insertIdx) insertIdx -= 1;
-  if (fromIdx === insertIdx) return;
+  if (fromIdx === insertIdx) return false;
   const [item] = blocks.splice(fromIdx, 1);
   blocks.splice(insertIdx, 0, item);
+  return true;
 }
 
 function getDetailState(item, prefix) {
