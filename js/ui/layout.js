@@ -22,12 +22,6 @@ export function buildAppShell() {
       <div><kbd>Space</kbd> 답 열기/닫기</div>
       <div><kbd>Click</kbd> 목차 점프</div>
     </div>
-    <div class="sidebar__guide">
-      <div class="sidebar__guide-label">📋 수업 지도안</div>
-      <a class="sidebar__guide-link"
-         href="https://booong.notion.site/rational-discrimination?source=copy_link"
-         target="_blank" rel="noopener">지도안 열기</a>
-    </div>
   `;
 
   const main = document.createElement("main");

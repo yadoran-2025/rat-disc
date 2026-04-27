@@ -37,12 +37,15 @@ function render() {
   const works = getWorks();
   const selectedMember = members.find(member => member.id === state.selectedMemberId) || members[0] || null;
   if (selectedMember && selectedMember.id !== state.selectedMemberId) state.selectedMemberId = selectedMember.id;
+  const linkedCount = getLinkedWorkCount(members);
+  const selectedCount = selectedMember ? getMemberWorks(selectedMember).filter(work => findWork(work.type, work.id)).length : 0;
 
   root.innerHTML = `
     <main class="connect">
       <header class="connect__topbar">
-        <div>
+        <div class="connect__hero">
           <a class="connect__back" href="index.html">대시보드로 돌아가기</a>
+          <p class="connect__eyebrow">BOOONG Admin</p>
           <h1 class="connect__title">제작자 연결 편집기</h1>
           <p class="connect__intro">사람을 선택한 뒤, 그 사람이 만든 수업과 게임을 체크하세요. 변경된 members.json만 다운로드하면 반영됩니다.</p>
         </div>
@@ -52,6 +55,25 @@ function render() {
           <button class="btn btn--primary" type="button" data-action="download-json">members.json 다운로드</button>
         </div>
       </header>
+
+      <section class="connect__summary" aria-label="연결 현황">
+        <div class="connect-stat">
+          <span class="connect-stat__label">Creators</span>
+          <strong>${members.length}</strong>
+        </div>
+        <div class="connect-stat">
+          <span class="connect-stat__label">Works</span>
+          <strong>${works.length}</strong>
+        </div>
+        <div class="connect-stat">
+          <span class="connect-stat__label">Linked</span>
+          <strong>${linkedCount}</strong>
+        </div>
+        <div class="connect-stat connect-stat--accent">
+          <span class="connect-stat__label">Selected</span>
+          <strong>${selectedCount}</strong>
+        </div>
+      </section>
 
       ${renderWarnings(members, works)}
 
@@ -70,7 +92,7 @@ function render() {
           <div class="connect-panel__head">
             <div>
               <h2>${selectedMember ? escapeHtml(selectedMember.name) : "제작자 없음"}</h2>
-              <p>${selectedMember ? `관심사: ${escapeHtml(selectedMember.interests || "미등록")}` : "members 배열에 제작자를 먼저 추가하세요."}</p>
+              <p>${selectedMember ? `${selectedCount}개 자료 연결됨 · ${escapeHtml(selectedMember.interests || "관심사 미등록")}` : "members 배열에 제작자를 먼저 추가하세요."}</p>
             </div>
             <input class="connect-search" type="search" value="${escapeAttr(state.query)}" placeholder="자료 검색" data-action="search">
           </div>
@@ -334,4 +356,10 @@ function removeMissingWorks() {
 
 function hasChanges() {
   return getOutputJson() !== state.originalJson;
+}
+
+function getLinkedWorkCount(members) {
+  return members.reduce((total, member) => {
+    return total + getMemberWorks(member).filter(work => findWork(work.type, work.id)).length;
+  }, 0);
 }

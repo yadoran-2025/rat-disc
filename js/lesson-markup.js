@@ -6,8 +6,11 @@ const OBJECT_BLOCKS = new Map([
 
 const FENCE_BLOCKS = new Map([
   [">>", "토글"],
-  ["```", "텍스트박스"],
 ]);
+
+const ANSWER_TAGS = ["답", "a"];
+const COMMENT_TAGS = ["댓", "c"];
+const EXAM_TAGS = ["문", "p"];
 
 export function parseLessonMarkup(source) {
   const lines = String(source ?? "").replace(/\r\n?/g, "\n").split("\n");
@@ -48,10 +51,18 @@ export function parseLessonMarkup(source) {
       continue;
     }
 
-    if (trimmed === "<p>") {
-      const result = collectTaggedBlock(lines, i, "p", warnings);
+    const examTag = getOpeningTag(trimmed, EXAM_TAGS);
+    if (examTag) {
+      const result = collectTaggedBlock(lines, i, examTag, warnings);
       blocks.push(buildExamBlock(result.body));
       i = result.nextIndex;
+      continue;
+    }
+
+    const commentTag = consumeCommentTag(lines, i);
+    if (commentTag) {
+      blocks.push({ type: "댓글" });
+      i = commentTag.nextIndex;
       continue;
     }
 
@@ -95,7 +106,8 @@ export function parseLessonMarkup(source) {
       if (
         OBJECT_BLOCKS.has(nextTrimmed) ||
         FENCE_BLOCKS.has(nextTrimmed) ||
-        nextTrimmed === "<p>" ||
+        getOpeningTag(nextTrimmed, EXAM_TAGS) ||
+        consumeCommentTag(lines, i) ||
         nextTrimmed === "---" ||
         parseObjectSequence(nextTrimmed) ||
         isMalformedQuoteLine(nextTrimmed) ||
@@ -121,44 +133,82 @@ function blockToMarkup(block) {
   if (block.type === "소제목") return `## ${block.text || ""}`.trimEnd();
   if (block.type === "절") return `### ${block.text || ""}`.trimEnd();
   if (block.type === "구분선") return "---";
+  if (block.type === "댓글") return "<댓>";
   if (block.type === "단락") return withAsides(block.text || "", block.asides);
-  if (block.type === "인용") return quoteLine(block.body || block.text || "");
+  if (block.type === "인용") return quoteLine(block.body || block.text || "", block.asides);
   if (block.type === "토글") return fenceMarkup(">>", block.body || block.text || block.answer || "");
-  if (block.type === "텍스트박스") return fenceMarkup("```", withAsides(block.body || block.text || "", block.asides));
   if (block.type === "미디어") return materialLine(block.items || block.materials || block.item, block.layout);
   if (block.type === "그룹") return objectSequenceLine(block.items || [], block.layout);
   if (block.type === "기출문제") {
     return (block.items || []).map(item => {
-      const answer = answerToText(item.answer);
-      return ["<p>", item.image || "", answer, "</p>"].filter(line => line !== "").join("\n");
+      return ["<문>", item.image || "", answerTag(item.answer), "</문>"].filter(line => line !== "").join("\n");
     }).join("\n\n");
   }
   if (block.type === "사례") {
     return objectMarkup("사례", [
-      withAsides(block.body || block.text || "", block.asides),
-      materialLine(block.materials, block.materialsLayout),
-      answerTag(block.answer),
-      block.comments ? "<c>\n</c>" : "",
+      objectContentMarkup(block),
+      legacyCommentMarkup(block),
     ]);
   }
   if (block.type === "개념") {
     return objectMarkup("개념", [
       block.title ? `## ${block.title}` : "",
-      withAsides(block.body || block.text || "", block.asides),
-      materialLine(block.materials, block.materialsLayout),
-      answerTag(block.answer),
-      block.comments ? "<c>\n</c>" : "",
+      objectContentMarkup(block),
+      legacyCommentMarkup(block),
     ]);
   }
   if (block.type === "발문") {
     return (block.prompts || []).map(prompt => objectMarkup("발문", [
-      withAsides(prompt.q || "", prompt.asides || (prompt.note ? [prompt.note] : [])),
-      materialLine(prompt.materials, prompt.materialsLayout),
-      answerTag(prompt.answer),
-      block.comments ? "<c>\n</c>" : "",
+      objectContentMarkup({
+        ...prompt,
+        body: prompt.q,
+        answer: prompt.answer,
+        asides: prompt.asides || (prompt.note ? [prompt.note] : []),
+      }),
+      block.comments && !flowHasComment(prompt.flow) ? "<댓>" : "",
     ])).join("\n\n");
   }
   return "";
+}
+
+function objectContentMarkup(block) {
+  if (Array.isArray(block.flow) && block.flow.length) {
+    return [
+      flowToMarkup(block.flow),
+      block.answer && !flowHasAnswer(block.flow) ? answerTag(block.answer) : "",
+    ].filter(Boolean).join("\n");
+  }
+  return [
+    withAsides(block.body || block.text || "", block.asides),
+    materialLine(block.materials, block.materialsLayout),
+    answerTag(block.answer),
+  ].filter(Boolean).join("\n");
+}
+
+function flowHasAnswer(flow = []) {
+  return asArray(flow).some(item => item?.type === "answer");
+}
+
+function flowHasComment(flow = []) {
+  return asArray(flow).some(item => item?.type === "comment");
+}
+
+function legacyCommentMarkup(block) {
+  return block.comments && !flowHasComment(block.flow) ? "<댓>" : "";
+}
+
+function flowToMarkup(flow = []) {
+  return asArray(flow).map(item => {
+    if (!item || typeof item !== "object") return "";
+    if (item.type === "text") return withAsides(item.text || "", item.asides);
+    if (item.type === "divider") return "---";
+    if (item.type === "materials") return materialLine(item.items, item.layout);
+    if (item.type === "quote") return quoteLine(item.body || item.text || "", item.asides);
+    if (item.type === "group") return objectSequenceLine(item.items || [], item.layout || "row");
+    if (item.type === "answer") return answerTag(item.answer);
+    if (item.type === "comment") return "<댓>";
+    return "";
+  }).filter(Boolean).join("\n");
 }
 
 function objectMarkup(label, parts) {
@@ -171,18 +221,45 @@ function fenceMarkup(fence, body) {
 
 function withAsides(text, asides = []) {
   const body = String(text || "").trim();
-  const asideText = asArray(asides).map(aside => `%${aside}%`).join("\n");
+  const asideText = asArray(asides).map(aside => `%${escapeAtomText(aside)}%`).join("\n");
   return [body, asideText].filter(Boolean).join("\n");
 }
 
 function answerTag(answer) {
   const text = answerToText(answer);
-  return text ? `<a>\n${text}\n</a>` : "";
+  return text ? `<답>\n${text}\n</답>` : "";
 }
 
 function answerToText(answer) {
   if (Array.isArray(answer)) return answer.join("\n");
   return String(answer || "").trim();
+}
+
+function getOpeningTag(trimmed, tags) {
+  return tags.find(tag => trimmed === `<${tag}>`) || "";
+}
+
+function getEmptyInlineTag(trimmed, tags) {
+  return tags.find(tag => trimmed === `<${tag}></${tag}>`) || "";
+}
+
+function consumeCommentTag(lines, index) {
+  const trimmed = lines[index]?.trim();
+  const emptyTag = getEmptyInlineTag(trimmed, COMMENT_TAGS);
+  if (emptyTag) return { tag: emptyTag, nextIndex: index + 1 };
+
+  const tag = getOpeningTag(trimmed, COMMENT_TAGS);
+  if (!tag) return null;
+
+  const close = `</${tag}>`;
+  let nextIndex = index + 1;
+  if (lines[nextIndex]?.trim() === close) {
+    nextIndex += 1;
+  } else if (tag === "c") {
+    const result = collectTaggedBlock(lines, index, tag, []);
+    nextIndex = result.nextIndex;
+  }
+  return { tag, nextIndex };
 }
 
 function collectObjectBlock(lines, startIndex, errors, warnings) {
@@ -275,37 +352,40 @@ function buildObjectBlock(type, lines, errors = []) {
       type,
       prompts: parsed.prompts.length ? parsed.prompts : [{ q: "" }],
     };
-    if (parsed.comments) block.comments = true;
     return block;
   }
 
   const parsed = parseObjectContent(lines, errors);
+  const title = type === "개념" ? extractLeadingTitle(parsed) : "";
+  const legacy = deriveLegacyFromFlow(parsed.flow);
   const block = { type, body: parsed.text };
-  if (parsed.answer) block.answer = parsed.answer;
-  if (parsed.materials.length) block.materials = parsed.materials;
-  if (parsed.materialsLayout) block.materialsLayout = parsed.materialsLayout;
-  if (parsed.asides.length) block.asides = parsed.asides;
+  if (title) block.title = title;
+  block.body = legacy.text;
+  if (legacy.answer) block.answer = legacy.answer;
+  if (legacy.materials.length) block.materials = legacy.materials;
+  if (legacy.materialsLayout) block.materialsLayout = legacy.materialsLayout;
+  if (legacy.asides.length) block.asides = legacy.asides;
   if (parsed.flow.length) block.flow = parsed.flow;
-  if (parsed.comments) block.comments = true;
   return block;
 }
 
 function parsePromptContent(lines, errors = []) {
   const prompts = [];
   let buffer = [];
-  let comments = false;
 
   const flushPrompt = answer => {
     const parsed = parseObjectContent(buffer, errors);
+    const legacy = deriveLegacyFromFlow(parsed.flow);
     buffer = [];
-    const prompt = { q: parsed.text };
+    const prompt = { q: legacy.text };
+    const flow = [...parsed.flow];
     if (answer) prompt.answer = normalizeAnswer(answer);
-    else if (parsed.answer) prompt.answer = parsed.answer;
-    if (parsed.materials.length) prompt.materials = parsed.materials;
-    if (parsed.materialsLayout) prompt.materialsLayout = parsed.materialsLayout;
-    if (parsed.asides.length) prompt.asides = parsed.asides;
-    if (parsed.flow.length) prompt.flow = parsed.flow;
-    if (parsed.comments) comments = true;
+    else if (legacy.answer) prompt.answer = legacy.answer;
+    if (answer) flow.push({ type: "answer", answer: prompt.answer });
+    if (legacy.materials.length) prompt.materials = legacy.materials;
+    if (legacy.materialsLayout) prompt.materialsLayout = legacy.materialsLayout;
+    if (legacy.asides.length) prompt.asides = legacy.asides;
+    if (flow.length) prompt.flow = flow;
     if (prompt.q || prompt.answer || prompt.materials?.length || prompt.flow?.length) {
       prompts.push(prompt);
     }
@@ -313,39 +393,36 @@ function parsePromptContent(lines, errors = []) {
 
   for (let i = 0; i < lines.length; i += 1) {
     const trimmed = lines[i].trim();
-    if (trimmed === "<a>") {
-      const result = collectTaggedBlock(lines, i, "a", []);
+    const answerTagName = getOpeningTag(trimmed, ANSWER_TAGS);
+    if (answerTagName) {
+      const result = collectTaggedBlock(lines, i, answerTagName, []);
       flushPrompt(result.body.trim());
       i = result.nextIndex - 1;
       continue;
     }
-    if (trimmed === "<c>") {
-      const result = collectTaggedBlock(lines, i, "c", []);
-      comments = true;
-      i = result.nextIndex - 1;
+    const commentTag = consumeCommentTag(lines, i);
+    if (commentTag && !buffer.join("").trim() && prompts.length) {
+      const prompt = prompts[prompts.length - 1];
+      if (!Array.isArray(prompt.flow)) prompt.flow = [];
+      prompt.flow.push({ type: "comment" });
+      i = commentTag.nextIndex - 1;
       continue;
     }
     buffer.push(lines[i]);
   }
 
   flushPrompt("");
-  return { prompts, comments };
+  return { prompts };
 }
 
 function parseObjectContent(lines, errors = []) {
   let kept = [];
   const flow = [];
-  const textParts = [];
-  const materials = [];
-  let materialsLayout = "";
-  let comments = false;
-  const answers = [];
 
   const flushText = () => {
     const { text, asides } = extractAsides(kept.join("\n").trim());
     kept = [];
     if (!text && !asides.length) return;
-    if (text) textParts.push(text);
     const item = { type: "text" };
     if (text) item.text = text;
     if (asides.length) item.asides = asides;
@@ -368,9 +445,6 @@ function parseObjectContent(lines, errors = []) {
     const objectSeq = parseObjectSequence(trimmed);
     if (objectSeq) {
       flushText();
-      const materialItems = objectSeq.items.filter(item => typeof item === "string");
-      if (materialItems.length) materials.push(...materialItems);
-      if (objectSeq.layout === "row" && materialItems.length === objectSeq.items.length) materialsLayout = "row";
       flow.push(sequenceToFlowItem(objectSeq));
       continue;
     }
@@ -383,23 +457,23 @@ function parseObjectContent(lines, errors = []) {
       continue;
     }
 
-    if (trimmed === "<a>") {
+    const answerTagName = getOpeningTag(trimmed, ANSWER_TAGS);
+    if (answerTagName) {
       flushText();
-      const result = collectTaggedBlock(lines, i, "a", []);
+      const result = collectTaggedBlock(lines, i, answerTagName, []);
       const answer = normalizeAnswer(result.body.trim());
       if (answer) {
-        answers.push(result.body.trim());
         flow.push({ type: "answer", answer });
       }
       i = result.nextIndex - 1;
       continue;
     }
 
-    if (trimmed === "<c>") {
+    const commentTag = consumeCommentTag(lines, i);
+    if (commentTag) {
       flushText();
-      const result = collectTaggedBlock(lines, i, "c", []);
-      comments = true;
-      i = result.nextIndex - 1;
+      flow.push({ type: "comment" });
+      i = commentTag.nextIndex - 1;
       continue;
     }
 
@@ -407,20 +481,64 @@ function parseObjectContent(lines, errors = []) {
   }
 
   flushText();
-  const asides = flow.flatMap(item => item.asides || []);
+  const legacy = deriveLegacyFromFlow(flow);
+  return {
+    ...legacy,
+    flow,
+  };
+}
+
+function extractLeadingTitle(parsed) {
+  const first = parsed.flow[0];
+  if (!first || first.type !== "text") return "";
+  const lines = String(first.text || "").split("\n");
+  const titleMatch = lines[0]?.match(/^##(?!#)\s+(.+)$/);
+  if (!titleMatch) return "";
+
+  const rest = lines.slice(1);
+  while (rest.length && !rest[0].trim()) rest.shift();
+  first.text = rest.join("\n").trim();
+  if (!first.text && !first.asides?.length) parsed.flow.shift();
+  return titleMatch[1].trim();
+}
+
+function deriveLegacyFromFlow(flow = []) {
+  const textParts = [];
+  const materials = [];
+  let materialsLayout = "";
+  const answers = [];
+  const asides = [];
+
+  asArray(flow).forEach(item => {
+    if (!item || typeof item !== "object") return;
+    if (item.type === "text") {
+      if (item.text) textParts.push(item.text);
+      if (item.asides) asides.push(...asArray(item.asides));
+      return;
+    }
+    if (item.type === "materials") {
+      const itemMaterials = asArray(item.items).filter(isMaterialAtom);
+      if (itemMaterials.length) materials.push(...itemMaterials);
+      if (item.layout === "row" && itemMaterials.length === asArray(item.items).length) materialsLayout = "row";
+      return;
+    }
+    if (item.type === "answer") {
+      const text = answerToText(item.answer);
+      if (text) answers.push(text);
+    }
+  });
+
   return {
     text: textParts.join("\n\n").trim(),
     asides,
     materials,
     materialsLayout,
-    flow,
-    comments,
     answer: normalizeAnswer(answers.join("\n").trim()),
   };
 }
 
 function buildExamBlock(body) {
-  const answerExtracted = extractInlineTag(body, "a");
+  const answerExtracted = extractInlineTags(body, ANSWER_TAGS);
   const lines = answerExtracted.text.split("\n").map(line => line.trim()).filter(Boolean);
   const image = lines.shift() || "";
   const answerText = [lines.join("\n"), answerExtracted.matches.join("\n")].filter(Boolean).join("\n").trim();
@@ -442,7 +560,7 @@ function parseHeading(trimmed) {
 }
 
 function parseObjectSequence(line) {
-  const parts = line.split(/\s+~\s+/);
+  const parts = splitObjectSequence(line);
   if (!parts.length) return null;
   const items = [];
   for (const part of parts) {
@@ -457,23 +575,83 @@ function parseObjectSequence(line) {
   };
 }
 
+function splitObjectSequence(line) {
+  const parts = [];
+  let current = "";
+  let atom = "";
+
+  for (let i = 0; i < line.length; i += 1) {
+    if (!atom && line.startsWith("[[", i)) {
+      atom = "material";
+      current += "[[";
+      i += 1;
+      continue;
+    }
+    if (!atom && line.startsWith("{{", i)) {
+      atom = "quote";
+      current += "{{";
+      i += 1;
+      continue;
+    }
+    if (atom === "material" && line.startsWith("]]", i)) {
+      atom = "";
+      current += "]]";
+      i += 1;
+      continue;
+    }
+    if (atom === "quote" && line.startsWith("}}", i)) {
+      atom = "";
+      current += "}}";
+      i += 1;
+      continue;
+    }
+    if (!atom && /\s/.test(line[i]) && line[i + 1] === "~" && /\s/.test(line[i + 2] || "")) {
+      parts.push(current.trim());
+      current = "";
+      i += 2;
+      continue;
+    }
+    current += line[i];
+  }
+
+  if (atom) return [line];
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
 function parseObjectAtom(part) {
   const material = part.match(/^\[\[([^\]]+)\]\]$/);
-  if (material) return material[1].trim();
+  if (material) return parseMaterialAtom(material[1]);
   const quote = part.match(/^\{\{(.+)\}\}$/);
-  if (quote) return { type: "인용", body: quote[1].trim() };
+  if (quote) {
+    const { text, asides } = extractAsides(unescapeAtomText(quote[1].trim()));
+    const item = { type: "인용", body: text };
+    if (asides.length) item.asides = asides;
+    return item;
+  }
   return null;
+}
+
+function parseMaterialAtom(value) {
+  const raw = String(value || "").trim();
+  const separatorIndex = raw.indexOf("==");
+  if (separatorIndex < 0) return unescapeAtomText(raw);
+
+  const ref = raw.slice(0, separatorIndex).trim();
+  const caption = raw.slice(separatorIndex + 2).trim();
+  if (!ref || !caption) return unescapeAtomText(raw);
+  return { ref: unescapeAtomText(ref), caption: unescapeAtomText(caption) };
 }
 
 function sequenceToBlock(sequence) {
   if (sequence.items.length === 1) {
     const item = sequence.items[0];
-    if (typeof item === "string") {
+    if (isMaterialAtom(item)) {
       return { type: "미디어", layout: "stack", items: [item] };
     }
     return item;
   }
-  if (sequence.items.every(item => typeof item === "string")) {
+  if (sequence.items.every(isMaterialAtom)) {
     return {
       type: "미디어",
       layout: sequence.layout,
@@ -490,12 +668,16 @@ function sequenceToBlock(sequence) {
 function sequenceToFlowItem(sequence) {
   if (sequence.items.length === 1) {
     const item = sequence.items[0];
-    if (typeof item === "string") {
+    if (isMaterialAtom(item)) {
       return { type: "materials", items: [item], layout: "stack" };
     }
-    if (item.type === "인용") return { type: "quote", body: item.body };
+    if (item.type === "인용") {
+      const quote = { type: "quote", body: item.body };
+      if (item.asides?.length) quote.asides = item.asides;
+      return quote;
+    }
   }
-  if (sequence.items.every(item => typeof item === "string")) {
+  if (sequence.items.every(isMaterialAtom)) {
     return {
       type: "materials",
       items: sequence.items,
@@ -509,13 +691,17 @@ function sequenceToFlowItem(sequence) {
   };
 }
 
+function isMaterialAtom(item) {
+  return typeof item === "string" || Boolean(item?.ref);
+}
+
 function isMalformedQuoteLine(line) {
   const trimmed = String(line || "").trim();
   return trimmed.startsWith("{{") && !parseObjectSequence(trimmed);
 }
 
-function quoteLine(text) {
-  return `{{${String(text || "").trim()}}}`;
+function quoteLine(text, asides = []) {
+  return `{{${escapeAtomText(withAsides(text, asides))}}}`;
 }
 
 function objectSequenceLine(items, layout = "stack") {
@@ -526,10 +712,24 @@ function objectSequenceLine(items, layout = "stack") {
 
 function objectAtomToMarkup(item) {
   if (!item) return "";
-  if (typeof item === "string") return `[[${item}]]`;
-  if (item.type === "인용") return quoteLine(item.body || item.text || "");
-  if (item.ref) return `[[${item.ref}]]`;
+  if (typeof item === "string") return `[[${escapeAtomText(item)}]]`;
+  if (item.type === "인용") return quoteLine(item.body || item.text || "", item.asides);
+  if (item.ref) return materialAtomToMarkup(item);
   return "";
+}
+
+function materialAtomToMarkup(item) {
+  const caption = String(item.caption || "").trim();
+  const ref = escapeAtomText(item.ref || "");
+  return `[[${ref}${caption ? `==${escapeAtomText(caption)}` : ""}]]`;
+}
+
+function escapeAtomText(value) {
+  return String(value ?? "").replace(/\n/g, ";;");
+}
+
+function unescapeAtomText(value) {
+  return String(value ?? "").replace(/;;/g, "\n").replace(/\\n/g, "\n");
 }
 
 function extractAsides(text) {
@@ -543,14 +743,23 @@ function extractAsides(text) {
 }
 
 function extractInlineTag(text, tag) {
+  return extractInlineTags(text, [tag]);
+}
+
+function extractInlineTags(text, tags) {
   const matches = [];
-  const pattern = new RegExp(`<${tag}>\\n?([\\s\\S]*?)\\n?</${tag}>`, "g");
-  const clean = String(text || "").replace(pattern, (_, value) => {
+  const tagPattern = tags.map(escapeRegExp).join("|");
+  const pattern = new RegExp(`<(${tagPattern})>\\n?([\\s\\S]*?)\\n?</\\1>`, "g");
+  const clean = String(text || "").replace(pattern, (_, _tag, value) => {
     const trimmed = value.trim();
     if (trimmed) matches.push(trimmed);
     return "";
   }).trim();
   return { text: clean, matches };
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizeAnswer(value) {
@@ -562,8 +771,8 @@ function normalizeAnswer(value) {
 function materialLine(items, layout = "stack") {
   const values = asArray(items).map(item => {
     if (!item) return "";
-    if (typeof item === "string") return `[[${item}]]`;
-    if (item.ref) return `[[${item.ref}]]`;
+    if (typeof item === "string") return `[[${escapeAtomText(item)}]]`;
+    if (item.ref) return materialAtomToMarkup(item);
     return "";
   }).filter(Boolean);
   if (!values.length) return "";

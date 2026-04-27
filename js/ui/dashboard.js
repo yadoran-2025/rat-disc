@@ -230,6 +230,8 @@ function renderSubjectColumn(subject, items, type) {
 
 function renderLessonGroup(group) {
   const lessons = Array.isArray(group.lessons) ? group.lessons : [];
+  const zeroSession = normalizeZeroSession(group.zeroSession);
+  const lessonLinks = [zeroSession, ...lessons];
   return `
     <article class="dash-card dash-card--lesson">
       <div class="dash-card__meta">
@@ -239,15 +241,46 @@ function renderLessonGroup(group) {
       <h3 class="dash-card__title">${formatDashboardText(group.title || "수업")}</h3>
       <p class="dash-card__desc">${escapeHtml(group.desc || "")}</p>
       <div class="dash-card__links">
-        ${lessons.map(lesson => `
-          <a class="lesson-sub-card" href="?lesson=${encodeURIComponent(lesson.id)}">
-            <span class="lesson-sub-card__label">${escapeHtml(lesson.label || "차시")}</span>
-            <span class="lesson-sub-card__title">${escapeHtml(lesson.title || "수업 열기")}</span>
-            <span class="lesson-sub-card__arrow" aria-hidden="true">→</span>
-          </a>
-        `).join("")}
+        ${lessonLinks.map(renderLessonSubCard).join("")}
       </div>
     </article>
+  `;
+}
+
+function normalizeZeroSession(zeroSession) {
+  return {
+    label: zeroSession?.label || "0차시",
+    title: zeroSession?.title || "지도안 및 심화자료",
+    desc: zeroSession?.desc || "수업 지도안과 확장 읽기 자료",
+    link: zeroSession?.link || "",
+    isZeroSession: true,
+  };
+}
+
+function renderLessonSubCard(lesson) {
+  const href = lesson.link || (lesson.id ? `?lesson=${encodeURIComponent(lesson.id)}` : "");
+  const isDisabled = !href;
+  const isExternal = /^https?:\/\//i.test(href);
+  const classes = [
+    "lesson-sub-card",
+    lesson.isZeroSession ? "lesson-sub-card--zero" : "",
+    isDisabled ? "is-disabled" : "",
+  ].filter(Boolean).join(" ");
+  const label = escapeHtml(lesson.label || "차시");
+  const title = escapeHtml(lesson.title || "수업 열기");
+  const status = isDisabled ? `<span class="lesson-sub-card__status">준비 중</span>` : `<span class="lesson-sub-card__arrow" aria-hidden="true">→</span>`;
+  const attrs = [
+    `class="${classes}"`,
+    isDisabled ? `aria-disabled="true"` : `href="${escapeAttr(href)}"`,
+    isExternal ? `target="_blank" rel="noopener"` : "",
+  ].filter(Boolean).join(" ");
+
+  return `
+    <a ${attrs}>
+      <span class="lesson-sub-card__label">${label}</span>
+      <span class="lesson-sub-card__title">${title}</span>
+      ${status}
+    </a>
   `;
 }
 

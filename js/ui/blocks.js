@@ -21,7 +21,7 @@ const linkPreviewCache = new Map();
  *   소제목, 단락            — 기본 텍스트
  *   사례, 발문, 개념        — 콜아웃
  *   이미지곁글              — 이미지 + 텍스트 좌우 배치
- *   미디어                  — 이미지·영상·텍스트박스
+ *   미디어                  — 이미지·영상·텍스트 자료
  *   기출문제                — 수능 문제 아코디언
  */
 export function renderBlock(block, blockIdx) {
@@ -30,10 +30,10 @@ export function renderBlock(block, blockIdx) {
     소제목:    renderHeading,
     절:        renderSubsection,
     구분선:    renderDivider,
+    댓글:      renderCommentBlock,
     인용:      renderQuote,
     그룹:      renderGroup,
     토글:      renderToggle,
-    텍스트박스: renderTextBox,
     사례:      renderCase,
     발문:      renderQuestion,
     개념:      renderConcept,
@@ -110,17 +110,6 @@ function renderToggle(block) {
   return div;
 }
 
-function renderTextBox(block) {
-  const div = buildTextCutout({
-    title: block.title,
-    body: block.body || block.text || "",
-    source: block.source,
-  });
-  div.classList.add("block");
-  appendAsides(div, block.asides);
-  return div;
-}
-
 export function renderDivider() {
   const hr = document.createElement("hr");
   hr.className = "block divider";
@@ -140,7 +129,7 @@ export function renderBlockSeparator() {
  * style: "case" | "concept" | "news"
  * 필드: title(=label), body(=text), footer(=sub/source)
  */
-function renderCallout(block, defaultStyle) {
+function renderCallout(block, defaultStyle, blockIdx) {
   const style = block.style ?? defaultStyle;
 
   if (style === "news") {
@@ -158,11 +147,18 @@ function renderCallout(block, defaultStyle) {
 
   if (style === "concept") {
     if (title) div.appendChild(buildTextElement("div", "concept__title", title, false));
-    if (block.flow?.length) appendFlow(div, block.flow, "concept__body");
+    if (block.flow?.length) appendFlow(div, block.flow, "concept__body", {
+      blockIdx,
+      variant: "concept",
+      label: "학생 답변 보기",
+    });
     else if (body) div.appendChild(buildTextElement("div", "concept__body", formatInline(body)));
   } else {
     if (title) div.appendChild(buildTextElement("div", "callout__label", title, false));
-    if (block.flow?.length) appendFlow(div, block.flow, "case__text");
+    if (block.flow?.length) appendFlow(div, block.flow, "case__text", {
+      blockIdx,
+      variant: "case",
+    });
     else if (body) div.appendChild(buildTextElement("div", "case__text", formatInline(body)));
     if (footer) div.appendChild(buildTextElement("div", "case__sub", formatInline(footer)));
   }
@@ -176,18 +172,15 @@ function renderCallout(block, defaultStyle) {
 }
 
 function renderCase(block, blockIdx) {
-  const div = renderCallout(block, "case");
+  const div = renderCallout(block, "case", blockIdx);
 
-  if (!block.comments) return div;
+  if (!block.comments || hasFlowComment(block.flow)) return div;
 
-  const lessonId = app.lesson.id || app.lesson.title || "lesson";
-  const sectionId = app.lesson.sections[app.currentIdx]?.id || `sec${app.currentIdx}`;
-  const commentKey = `${lessonId}__${sectionId}__b${blockIdx ?? 0}__p0`;
   const wrapper = document.createElement("div");
   wrapper.className = "case-with-comments";
   div.classList.remove("block");
   wrapper.appendChild(div);
-  appendCommentSection(wrapper, commentKey, "case");
+  appendCommentSection(wrapper, commentKey(blockIdx, "p0"), "case");
   return wrapper;
 }
 
@@ -228,6 +221,12 @@ function renderQuestion(block, blockIdx) {
           div.appendChild(buildObjectGroup(item.items, item.layout || "row"));
           return;
         }
+        if (item.type === "comment") {
+          appendCommentObject(div, commentKey(bIdx, `p${promptIdx}__f${flowIdx}`), "question", block.prompts.length > 1
+            ? `Q${promptIdx + 1} 학생 답변 보기`
+            : "학생 답변 보기");
+          return;
+        }
         const p = document.createElement("div");
         p.className = "question__prompt";
         const prefix = flowIdx === firstTextIdx ? "Q. " : "";
@@ -248,10 +247,9 @@ function renderQuestion(block, blockIdx) {
     // answer는 항상 { text } 또는 { bullets } 객체
     if (pr.answer && !hasFlowAnswer(pr.flow)) div.appendChild(buildAnswer(pr.answer, "답 보기"));
 
-    if (block.comments) {
-      const commentKey = `${lessonId}__${sectionId}__b${bIdx}__p${promptIdx}`;
+    if (block.comments && !hasFlowComment(pr.flow)) {
       commentSections.push({
-        key: commentKey,
+        key: `${lessonId}__${sectionId}__b${bIdx}__p${promptIdx}`,
         label: block.prompts.length > 1
           ? `Q${promptIdx + 1} 학생 답변 보기`
           : "학생 답변 보기",
@@ -285,12 +283,28 @@ function appendCommentSection(parent, key, variant, label = null) {
     });
 }
 
-function renderConcept(block) {
-  return renderCallout(block, "concept");
+function renderConcept(block, blockIdx) {
+  const div = renderCallout(block, "concept", blockIdx);
+
+  if (!block.comments || hasFlowComment(block.flow)) return div;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "concept-with-comments";
+  div.classList.remove("block");
+  wrapper.appendChild(div);
+  appendCommentSection(wrapper, commentKey(blockIdx, "p0"), "concept", "학생 답변 보기");
+  return wrapper;
 }
 
-function appendFlow(parent, flow, textClass) {
-  flow.forEach(item => {
+function renderCommentBlock(_block, blockIdx) {
+  const wrap = document.createElement("div");
+  wrap.className = "block comment-object";
+  appendCommentSection(wrap, commentKey(blockIdx, "standalone"), "question", "학생 답변 보기");
+  return wrap;
+}
+
+function appendFlow(parent, flow, textClass, context = {}) {
+  flow.forEach((item, flowIdx) => {
     if (item.type === "materials") {
       appendMaterials(parent, item.items, item.layout);
       return;
@@ -313,6 +327,10 @@ function appendFlow(parent, flow, textClass) {
       parent.appendChild(buildObjectGroup(item.items, item.layout || "row"));
       return;
     }
+    if (item.type === "comment") {
+      appendCommentObject(parent, commentKey(context.blockIdx, `f${flowIdx}`), context.variant || "question", context.label);
+      return;
+    }
     const text = document.createElement("div");
     text.className = textClass;
     text.innerHTML = formatInline(item.text || "");
@@ -321,25 +339,56 @@ function appendFlow(parent, flow, textClass) {
   });
 }
 
+function appendCommentObject(parent, key, variant = "question", label = "학생 답변 보기") {
+  const wrap = document.createElement("div");
+  wrap.className = "comment-object";
+  parent.appendChild(wrap);
+  appendCommentSection(wrap, key, variant, label);
+}
+
+function commentKey(blockIdx = 0, suffix = "comment") {
+  const lessonId = app.lesson.id || app.lesson.title || "lesson";
+  const sectionId = app.lesson.sections[app.currentIdx]?.id || `sec${app.currentIdx}`;
+  return `${lessonId}__${sectionId}__b${blockIdx ?? 0}__${suffix}`;
+}
+
 function renderFlowQuote(item) {
-  const quote = renderQuote({ body: item.body || item.text || "" });
+  const quote = renderQuote({ body: item.body || item.text || "", asides: item.asides });
   quote.classList.remove("block");
   return quote;
 }
 
 function buildObjectGroup(items, layout = "row", extraClass = "") {
   const wrap = document.createElement("div");
-  wrap.className = `object-group object-group--${normalizeLayout(layout)} ${extraClass}`.trim();
+  const normalizedLayout = normalizeLayout(layout);
+  wrap.className = `object-group object-group--${normalizedLayout} ${extraClass}`.trim();
   asArray(items).forEach(item => {
     const child = buildObjectGroupItem(item);
     if (child) wrap.appendChild(child);
   });
+  applyObjectGroupCompositionClass(wrap, normalizedLayout);
   return wrap;
+}
+
+function applyObjectGroupCompositionClass(wrap, layout) {
+  if (layout !== "row" || wrap.children.length !== 2) return;
+
+  const [first, second] = wrap.children;
+  const firstIsImage = first.classList.contains("material--image");
+  const secondIsImage = second.classList.contains("material--image");
+  const firstIsQuote = first.classList.contains("quote-block");
+  const secondIsQuote = second.classList.contains("quote-block");
+
+  if (firstIsImage && secondIsQuote) {
+    wrap.classList.add("object-group--image-quote");
+  } else if (firstIsQuote && secondIsImage) {
+    wrap.classList.add("object-group--quote-image");
+  }
 }
 
 function buildObjectGroupItem(item) {
   if (typeof item === "string" || item?.ref) {
-    const material = resolveMaterial(typeof item === "string" ? item : item.ref);
+    const material = resolveMaterial(item);
     return material ? buildMaterial(material) : null;
   }
   if (item?.type === "인용") {
@@ -352,6 +401,10 @@ function buildObjectGroupItem(item) {
 
 function hasFlowAnswer(flow) {
   return Array.isArray(flow) && flow.some(item => item?.type === "answer");
+}
+
+function hasFlowComment(flow) {
+  return Array.isArray(flow) && flow.some(item => item?.type === "comment");
 }
 
 function buildTextElement(tag, className, html, alreadyFormatted = true) {
@@ -433,12 +486,12 @@ function renderFigure(block) {
 /* ── 미디어 ── */
 
 /**
- * media — 이미지·영상·텍스트박스 통합 블록
+ * media — 이미지·영상·텍스트 자료 통합 블록
  *
  * kind: "row"   — 이미지 여러 장 가로 나열 (구 image-row)
  * kind: "image" — 캡션 있는 단독 이미지
  * kind: "video" — 유튜브 썸네일 링크 (구 video-link)
- * kind: "text"  — 신문기사 스타일 텍스트박스 (구 text: 접두사)
+ * kind: "text"  — 신문기사 스타일 텍스트 자료 (구 text: 접두사)
  *                 추가 필드: headline?, body, source?
  */
 function renderMedia(block) {

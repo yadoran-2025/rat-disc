@@ -6,7 +6,7 @@ import { parseLessonMarkup, stringifyLessonMarkup } from "./lesson-markup.js";
 
 const BLOCK_TYPE_GROUPS = [
   ["기본", ["소제목", "단락"]],
-  ["활동", ["사례", "발문", "개념"]],
+  ["활동", ["사례", "발문", "개념", "댓글"]],
   ["자료·문제", ["미디어", "기출문제"]],
 ];
 const BLOCK_TYPES = BLOCK_TYPE_GROUPS.flatMap(([, types]) => types);
@@ -26,20 +26,23 @@ const MARKUP_GUIDE_TEXT = `## 장 제목
 [사례
 사례 본문
 [[자료키]]
-<a>
+<답>
 답 보기 내용
-</a>
+</답>
 ]
 
 [발문
 질문 내용
 ]
 
+<댓>
+
 [개념
 개념 설명
 ]
 
 [[자료1]] ~ [[자료2]]
+[[자료키==캡션]]
 {{인용문}} ~ {{다른 인용문}}
 
 ---
@@ -47,11 +50,7 @@ const MARKUP_GUIDE_TEXT = `## 장 제목
 
 >>
 토글 박스
->>
-
-\`\`\`
-텍스트 박스
-\`\`\``;
+>>`;
 // Paste the deployed Google Apps Script Web App /exec URL here.
 const ASSET_UPLOAD_ENDPOINT = "https://script.google.com/macros/s/AKfycbw_DJp0xMarEDwnQnpO0nEcQMhWygsMiBf_HGgnauh_ViU-KLmI1pG8ZI_CdNMNOi8P/exec";
 
@@ -581,17 +580,17 @@ function renderMarkupEditor(sectionIdx) {
               <span class="markup-help__row"><code>-</code><span>불릿</span></span>
               <span class="markup-help__row"><code>  -</code><span>하위 불릿</span></span>
               <span class="markup-help__row"><code>*내용*</code><span>강조</span></span>
-              <span class="markup-help__row"><code>%내용%</code><span>힌트/출처/부연</span></span>
+              <span class="markup-help__row"><code>%내용%</code><span>텍스트 보조문</span></span>
               <span class="markup-help__row"><code>[[자료키]]</code><span>외부자료 호출</span></span>
+              <span class="markup-help__row"><code>[[자료키==캡션]]</code><span>자료 캡션</span></span>
               <span class="markup-help__row"><code>[[a]] ~ [[b]]</code><span>자료 병렬 연결</span></span>
               <span class="markup-help__row"><code>{{인용}}</code><span>인용 박스</span></span>
               <span class="markup-help__row"><code>{{a}} ~ {{b}}</code><span>인용 병렬 연결</span></span>
               <span class="markup-help__row"><code>---</code><span>구분선</span></span>
-              <span class="markup-help__row"><code>&lt;a&gt;...&lt;/a&gt;</code><span>답 보기</span></span>
-              <span class="markup-help__row"><code>&lt;c&gt;...&lt;/c&gt;</code><span>댓글 박스</span></span>
-              <span class="markup-help__row"><code>&lt;p&gt;...&lt;/p&gt;</code><span>기출문제</span></span>
+              <span class="markup-help__row"><code>&lt;답&gt;...&lt;/답&gt;</code><span>답 보기</span></span>
+              <span class="markup-help__row"><code>&lt;댓&gt;</code><span>댓글 칸</span></span>
+              <span class="markup-help__row"><code>&lt;문&gt;...&lt;/문&gt;</code><span>기출문제</span></span>
               <span class="markup-help__row"><code>&gt;&gt;</code><span>토글 박스</span></span>
-              <span class="markup-help__row"><code>&#96;&#96;&#96;</code><span>텍스트 박스</span></span>
             </span>
           </span>
           <button class="btn btn--sm" type="button" data-action="insert-markup-asset">자료 키 넣기</button>
@@ -600,7 +599,7 @@ function renderMarkupEditor(sectionIdx) {
       <label class="field field--full">
         <span class="field__label">현재 섹션 블록</span>
         <textarea id="markup-source" class="markup-source" spellcheck="false" wrap="soft">${escapeHtml(source)}</textarea>
-        <span class="field__hint">[사례, [개념, [발문은 ]로 닫고, 자료는 [[키]], 인용은 {{내용}}, 병렬 연결은 ~, 구분선은 --- 로 씁니다.</span>
+        <span class="field__hint">[사례, [개념, [발문은 ]로 닫고, 자료는 [[키]], 인용은 {{내용}}, 댓글 칸은 &lt;댓&gt;, 병렬 연결은 ~, 구분선은 --- 로 씁니다.</span>
       </label>
       <div id="markup-messages">
         ${renderSyntaxMessages(messages)}
@@ -669,7 +668,6 @@ function renderFieldsForBlock(block, basePath) {
         ${textareaField("body", "본문", `${basePath}.body`)}
         ${textareaField("footer", "출처/부연", `${basePath}.footer`)}
         ${textareaField("answer", "답 보기", `${basePath}.answerText`, "줄마다 항목을 적으면 배열로 저장됩니다.")}
-        ${checkboxField("comments", "댓글 기능 활성화", `${basePath}.comments`)}
       </div>
       ${materialListEditor("첨부 자료", `${basePath}.materials`, "사례 본문 아래에 붙일 자료를 추가합니다.", `${basePath}.materialsLayout`)}
     `;
@@ -686,11 +684,9 @@ function renderFieldsForBlock(block, basePath) {
   if (block.type === "발문") {
     return `
       ${arrayEditor("질문", `${basePath}.prompts`, "prompt")}
-      <div class="form-grid" style="margin-top:0.85rem;">
-        ${checkboxField("comments", "댓글 기능 활성화", `${basePath}.comments`)}
-      </div>
     `;
   }
+  if (block.type === "댓글") return "";
   if (block.type === "이미지곁글") {
     return `
       <div class="form-grid">
@@ -1093,7 +1089,6 @@ function renderPreview() {
   errors.innerHTML = "";
 
   const lesson = structuredClone(state.lesson);
-  stripComments(lesson);
   lesson.assets = state.assetMap;
   app.lesson = lesson;
 
@@ -2272,7 +2267,8 @@ function createSampleLesson() {
         title: "첫 번째 섹션",
         blocks: [
           { type: "단락", text: "본문은 이곳에 입력합니다. **굵게**와 줄바꿈을 사용할 수 있습니다." },
-          { type: "발문", prompts: [{ q: "학생들에게 던질 질문을 적어보세요.", note: "", answer: "" }], comments: true },
+          { type: "발문", prompts: [{ q: "학생들에게 던질 질문을 적어보세요.", note: "", answer: "" }] },
+          { type: "댓글" },
           { type: "개념", title: "핵심 개념", body: "개념 설명을 적습니다.\n- 중요한 항목 1\n- 중요한 항목 2" },
         ],
       },
@@ -2294,9 +2290,11 @@ function createBlock(type) {
     case "소제목":
       return { type, text: "" };
     case "사례":
-      return { type, title: "사례", body: "", footer: "", answer: "", comments: false, materials: [] };
+      return { type, title: "사례", body: "", footer: "", answer: "", materials: [] };
     case "발문":
-      return { type, prompts: [{ q: "", note: "", answer: "", materials: [] }], comments: false };
+      return { type, prompts: [{ q: "", note: "", answer: "", materials: [] }] };
+    case "댓글":
+      return { type };
     case "개념":
       return { type, title: "", body: "", materials: [] };
     case "이미지곁글":

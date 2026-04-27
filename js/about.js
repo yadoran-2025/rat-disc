@@ -61,18 +61,38 @@ function renderAbout() {
         </nav>
 
         <header class="about__hero">
-          <p class="about__eyebrow">About Us</p>
-          <h1 class="about__slogan">
-            타자를 돕고,<br>
-            <span>타자로서</span> 돕는 사람들
-          </h1>
+          <div class="about__hero-copy">
+            <p class="about__eyebrow">About Us</p>
+            <h1 class="about__slogan">
+              타자를 돕고,<br>
+              <span>타자로서</span> 돕는 사람들
+            </h1>
+            <p class="about__intro">
+              BOOONG은 사회를 이해하는 언어를 함께 만들고, 각자의 자리에서 질문을 이어가는 사회교육 공동체입니다.
+            </p>
+          </div>
+          <div class="about__scene" aria-label="공적 질문이 모이는 밤의 장면">
+            <div class="about__scene-image" aria-hidden="true">
+              <img src="assets/about-hero.jpg?v=20260427" alt="">
+            </div>
+            <div class="about__hero-note">
+              <span>PUBLIC QUESTIONS</span>
+              <strong>배움이 모이는 장면을 수업으로 옮깁니다.</strong>
+            </div>
+          </div>
         </header>
 
         ${state.members.length ? renderMemberExplorer() : renderEmpty()}
 
         <footer class="about__footer" aria-label="BOOONG copyright">
           <div class="about__footer-line"></div>
-          <span>BOOONG ${new Date().getFullYear()}</span>
+          <div class="about__footer-meta">
+            <span>BOOONG ${new Date().getFullYear()}</span>
+            <a class="about__contact" href="mailto:jinyoung1571@naver.com">
+              <span class="about__contact-label">Contact</span>
+              <span class="about__contact-email">jinyoung1571@naver.com</span>
+            </a>
+          </div>
         </footer>
       </div>
     </main>

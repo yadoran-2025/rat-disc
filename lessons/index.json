@@ -18,6 +18,12 @@
       "school": "고등학교",
       "title": "합리적 차별은 일단 여기서는 금지입니다",
       "desc": "차별의 정의와 차별의 판단 기준을 연습하는 수업입니다.",
+      "zeroSession": {
+        "label": "0차시",
+        "title": "지도안 및 심화자료",
+        "desc": "수업 지도안과 확장 읽기 자료",
+        "link": "https://booong.notion.site/rational-discrimination?source=copy_link"
+      },
       "lessons": [
         {
           "id": "rat-disc-1",
@@ -39,6 +45,11 @@
       "school": "고등학교",
       "title": "법과 사회 1단원 : <br>개인생활과 법",
       "desc": "법과 사회 1단원: 개인생활과 법 강의안입니다.",
+      "zeroSession": {
+        "label": "0차시",
+        "title": "지도안 및 심화자료",
+        "desc": "수업 지도안과 확장 읽기 자료"
+      },
       "lessons": [
         {
           "id": "family-law-1",

@@ -537,7 +537,22 @@
   display: flex;
   flex-direction: column;
   gap: 0.38rem;
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.25rem);
+  transition: max-height 0.22s ease, margin-top 0.22s ease, opacity 0.18s ease, transform 0.22s ease;
+}
+
+.dash-card--lesson:hover .dash-card__links,
+.dash-card--lesson:focus-within .dash-card__links {
+  max-height: 16rem;
   margin-top: 0.12rem;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .lesson-sub-card {
@@ -558,6 +573,22 @@
   border-color: rgba(var(--accent-rgb), 0.3);
   background: var(--accent-light);
   transform: translateX(4px);
+}
+
+.lesson-sub-card--zero {
+  border-color: rgba(46, 125, 79, 0.2);
+  background: var(--case-bg);
+}
+
+.lesson-sub-card--zero .lesson-sub-card__label,
+.lesson-sub-card--zero .lesson-sub-card__arrow {
+  color: var(--case-border);
+}
+
+.lesson-sub-card.is-disabled {
+  cursor: default;
+  opacity: 0.72;
+  pointer-events: none;
 }
 
 .lesson-sub-card__label {
@@ -583,6 +614,13 @@
   font-size: 0.7rem;
   opacity: 0;
   transition: opacity 0.2s, transform 0.2s;
+}
+
+.lesson-sub-card__status {
+  color: var(--text-faint);
+  font-size: 0.64rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .lesson-sub-card:hover .lesson-sub-card__arrow {
