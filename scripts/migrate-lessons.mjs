@@ -223,7 +223,7 @@ function walkBlock(block, visit) {
 function buildBlockGuide(previous) {
   return {
     id: "block-guide",
-    title: "블록 가이드 갤러리",
+    title: "BNG LANG 설명서",
     subtitle: "자료 DB와 materials 중심의 새 수업 JSON 작성법",
     imageBase: previous.imageBase || "assets/images/",
     prev: null,

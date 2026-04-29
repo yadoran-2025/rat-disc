@@ -40,7 +40,7 @@ export async function showDashboard() {
   container.className = "dashboard";
   container.innerHTML = `
     <div class="dashboard__top-nav">
-      <a class="dashboard__ds-link" href="design-system.html">DESIGN SYSTEM</a>
+      <a class="dashboard__ds-link" href="https://yadoran-2025.github.io/booong-design-system/" target="_blank" rel="noopener">DESIGN SYSTEM</a>
       <a class="dashboard__about-link" href="about.html">ABOUT US</a>
     </div>
   `;

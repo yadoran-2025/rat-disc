@@ -108,8 +108,8 @@ function renderShell() {
         <div class="author__brand">
           <a class="author__back" href="index.html" aria-label="대시보드로 이동">←</a>
           <div>
-            <h1 class="author__title">수업 JSON 빌더</h1>
-            <div class="author__subtitle">수업 정보, 섹션, 블록을 폼으로 구성하고 발표용 JSON을 생성합니다.</div>
+            <h1 class="author__title">BNG LANG 에디터</h1>
+            <div class="author__subtitle">BNG LANG(붕랭) 문법으로 수업 정보, 섹션, 블록을 구성하고 발표용 JSON을 생성합니다.</div>
           </div>
         </div>
         <div class="author__actions">

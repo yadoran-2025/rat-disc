@@ -1,6 +1,7 @@
 import { app, clearListeners } from "./state.js";
 import { loadExternalAssets } from "./api.js";
 import { showDashboard } from "./ui/dashboard.js";
+import { renderGuideGallery } from "./ui/guide-gallery.js";
 import { buildAppShell, renderSidebar, renderNavFooter, bindKeyboard, toggleFirstVisibleAnswer } from "./ui/layout.js";
 import { closeImageLightbox, closeFocusOverlay, closeBlockFullscreen, navigateBlockFullscreen } from "./ui/components.js";
 import { renderBlock, renderBlockSeparator } from "./ui/blocks.js";
@@ -44,6 +45,11 @@ async function init() {
         <p>파일: <code>lessons/${lessonId}.json</code></p>
         <p>오류: ${err.message}</p>
       </div>`;
+    return;
+  }
+
+  if (app.lesson.kind === "guide-gallery") {
+    renderGuideGallery();
     return;
   }
 

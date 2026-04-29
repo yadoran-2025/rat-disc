@@ -100,9 +100,9 @@
     {
       "id": "block-guide",
       "type": "guide",
-      "tag": "시스템 가이드",
-      "title": "블록 가이드 갤러리",
-      "desc": "모든 블록 유형의 시각적 예시와 JSON 작성법을 한눈에 확인하세요.",
+      "tag": "문법",
+      "title": "BNG LANG 설명서",
+      "desc": "자연어를 수업 JSON으로 바꾸는 BNG LANG(붕랭) 문법과 예시를 확인하세요.",
       "link": "?lesson=block-guide"
     },
     {
@@ -117,8 +117,8 @@
       "id": "lesson-author",
       "type": "tool",
       "tag": "도구",
-      "title": "수업 JSON 빌더",
-      "desc": "JSON 없이 폼으로 섹션·블록을 구성하면 발표용 JSON이 자동 생성됩니다. 외부자료 키 검색, 실시간 미리보기 포함.",
+      "title": "BNG LANG 에디터",
+      "desc": "BNG LANG(붕랭) 문법으로 섹션·블록을 구성하면 발표용 JSON이 자동 생성됩니다. 외부자료 키 검색, 실시간 미리보기 포함.",
       "link": "author.html"
     }
   ]
