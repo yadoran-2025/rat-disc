@@ -1,5 +1,6 @@
 import { loadDashboardConfig as loadSharedDashboardConfig } from "../dashboard-data.js";
 import { escapeHtml } from "../utils.js";
+import { loadPageVisitStats } from "../visitor-analytics.js";
 
 const SUBJECT_COLOR_PALETTE = [
   "#639922",
@@ -12,6 +13,16 @@ const SUBJECT_COLOR_PALETTE = [
   "#BE185D",
 ];
 
+const DISCIPLINE_COLORS = {
+  "법": "#185FA5",
+  "정치": "#D85A30",
+  "경제": "#84A51F",
+  "사회": "#7C3AAE",
+  "사회학": "#7C3AAE",
+  "지리": "#8A5A2B",
+};
+
+const SUBJECT_ORDER = ["사회1", "사회2", "통사1", "통사2", "정치", "법과사회", "경제", "국제정치"];
 const SCHOOL_ORDER = ["초등학교", "중학교", "고등학교", "대학교", "기타"];
 const RECENT_STORAGE_KEY = "booong-dashboard-recent-v1";
 const MAX_RECENT_ITEMS = 12;
@@ -59,6 +70,7 @@ function renderDashboard(root, config, state) {
       ${renderSidebar(config, items, state)}
       <main class="dashboard-main">
         ${renderMainHeader(config)}
+        ${renderVisitStatsShell()}
         ${renderSearchAndFilters(items, filteredItems, state)}
         ${renderResults(filteredItems, state)}
       </main>
@@ -66,6 +78,60 @@ function renderDashboard(root, config, state) {
   `;
 
   bindDashboardEvents(root, config, state);
+  hydrateVisitStats(root);
+}
+
+function renderVisitStatsShell() {
+  return `
+    <section class="dashboard-visit-stats" aria-label="페이지별 방문자 수" data-visit-stats>
+      <div class="dashboard-visit-stats__head">
+        <span>페이지별 방문자 수</span>
+        <span>불러오는 중</span>
+      </div>
+    </section>
+  `;
+}
+
+async function hydrateVisitStats(root) {
+  const target = root.querySelector("[data-visit-stats]");
+  if (!target) return;
+
+  const stats = await loadPageVisitStats();
+  if (!root.contains(target)) return;
+
+  if (!stats.length) {
+    target.innerHTML = `
+      <div class="dashboard-visit-stats__head">
+        <span>페이지별 방문자 수</span>
+        <span>집계 대기</span>
+      </div>
+      <p class="dashboard-visit-stats__empty">방문 기록이 쌓이면 여기에 페이지별 방문자 수가 표시됩니다.</p>
+    `;
+    return;
+  }
+
+  const totalVisitors = stats.reduce((sum, item) => sum + item.visitors, 0);
+  const totalViews = stats.reduce((sum, item) => sum + item.views, 0);
+  target.innerHTML = `
+    <div class="dashboard-visit-stats__head">
+      <span>페이지별 방문자 수</span>
+      <span>${escapeHtml(formatNumber(totalVisitors))}명 · ${escapeHtml(formatNumber(totalViews))}회</span>
+    </div>
+    <div class="dashboard-visit-stats__list">
+      ${stats.slice(0, 8).map(renderVisitStatRow).join("")}
+    </div>
+  `;
+}
+
+function renderVisitStatRow(item) {
+  return `
+    <div class="dashboard-visit-stats__row">
+      <span class="dashboard-visit-stats__title">${escapeHtml(item.title)}</span>
+      <span class="dashboard-visit-stats__meta">${escapeHtml(item.path || item.key)}</span>
+      <span class="dashboard-visit-stats__count">${escapeHtml(formatNumber(item.visitors))}명</span>
+      <span class="dashboard-visit-stats__views">${escapeHtml(formatNumber(item.views))}회</span>
+    </div>
+  `;
 }
 
 function renderSidebar(config, items, state) {
@@ -109,15 +175,11 @@ function renderSidebar(config, items, state) {
 
 function renderScooterPictogram() {
   return `
-    <svg viewBox="0 0 64 48" role="img" focusable="false">
-      <path d="M18 30h20c6.7 0 12.4-4.7 13.7-11.2l1.1-5.6" />
-      <path d="M36 30l5-12h12" />
-      <path d="M19 19h15l7 11" />
-      <path d="M12 30h7" />
-      <circle cx="18" cy="34" r="6" />
-      <circle cx="47" cy="34" r="6" />
-      <path d="M27 14h8" />
-      <path d="M14 24c2.4-4.8 7.2-7 13.5-7" />
+    <svg viewBox="0 0 24 24" role="img" focusable="false">
+      <circle cx="6" cy="18" r="2.5" />
+      <circle cx="18" cy="18" r="2.5" />
+      <path d="M6 15.5V11l2-2h3.5l1.5 1.5v5" />
+      <path d="M10 9V5h3" />
     </svg>
   `;
 }
@@ -175,12 +237,6 @@ function renderMainHeader(config) {
 
 function renderSearchAndFilters(items, filteredItems, state) {
   const sectionItems = getSectionItems(items, state.section);
-  const kindScope = state.kind
-    ? sectionItems.filter(item => item.kind === state.kind)
-    : sectionItems;
-  const schoolScope = state.school
-    ? kindScope.filter(item => item.schools.includes(state.school))
-    : kindScope;
 
   return `
     <section class="dashboard-controls" aria-label="라이브러리 필터">
@@ -200,24 +256,9 @@ function renderSearchAndFilters(items, filteredItems, state) {
 
       <div class="dashboard-filterbar">
         ${renderFilterGroup({
-          label: "유형",
-          key: "kind",
-          values: getKindOptions(sectionItems),
-          selected: state.kind,
-          allLabel: "전체",
-          labelForValue: getKindLabel,
-        })}
-        ${renderFilterGroup({
-          label: "학교급",
-          key: "school",
-          values: getSchools(kindScope, false),
-          selected: state.school,
-          allLabel: "전체",
-        })}
-        ${renderFilterGroup({
           label: "과목",
           key: "subject",
-          values: getSubjects(schoolScope, false),
+          values: getSubjects(sectionItems, false),
           selected: state.subject,
           allLabel: "전체",
         })}
@@ -298,12 +339,15 @@ function renderResults(items, state) {
 function renderResultRow(item) {
   return `
     <article class="dashboard-result-row" data-item-key="${escapeAttr(item.key)}">
-      <span class="dashboard-result-row__dot" style="--item-color: ${escapeAttr(item.color)};" aria-hidden="true"></span>
+      ${renderDisciplineBadge(item, "dashboard-result-row__discipline")}
       <span class="dashboard-result-row__body">
-        <span class="dashboard-result-row__title">${formatDashboardText(item.title)}</span>
+        <span class="dashboard-result-row__title">
+          <span class="dashboard-result-row__title-text">${formatDashboardText(item.title)}</span>
+          ${item.lessonCount ? `<span class="dashboard-result-row__lesson-count">${escapeHtml(`${item.lessonCount}차시`)}</span>` : ""}
+          ${item.kind === "game" ? `<span class="dashboard-kind-badge dashboard-kind-badge--game">게임</span>` : ""}
+        </span>
         <span class="dashboard-result-row__taxonomy">
-          <span class="dashboard-result-row__meta">${escapeHtml(item.meta.join(" · "))}</span>
-          ${item.schools.slice(0, 2).map(value => `<span class="chip chip--gray">${escapeHtml(value)}</span>`).join("")}
+          ${item.meta.length ? `<span class="dashboard-result-row__meta">${escapeHtml(item.meta.join(" · "))}</span>` : ""}
           ${item.subject ? `<span class="chip">${escapeHtml(item.subject)}</span>` : ""}
         </span>
         ${item.desc ? `<span class="dashboard-result-row__desc">${formatDashboardText(item.desc)}</span>` : ""}
@@ -321,16 +365,28 @@ function renderResultCard(item) {
         ${item.kind === "game" ? `<b>게임</b>` : ""}
       </span>
       <span class="dashboard-library-card__body">
-        <span class="dashboard-library-card__title">${formatDashboardText(item.title)}</span>
-        <span class="dashboard-library-card__meta">${escapeHtml(item.meta.join(" · "))}</span>
+        <span class="dashboard-library-card__title">
+          <span>${formatDashboardText(item.title)}</span>
+          ${item.lessonCount ? `<span class="dashboard-library-card__lesson-count">${escapeHtml(`${item.lessonCount}차시`)}</span>` : ""}
+        </span>
+        ${item.meta.length ? `<span class="dashboard-library-card__meta">${escapeHtml(item.meta.join(" · "))}</span>` : ""}
         <span class="dashboard-library-card__tags">
-          ${item.schools.slice(0, 2).map(value => `<span class="chip chip--gray">${escapeHtml(value)}</span>`).join("")}
           ${item.subject ? `<span class="chip">${escapeHtml(item.subject)}</span>` : ""}
         </span>
         ${item.desc ? `<span class="dashboard-library-card__desc">${formatDashboardText(item.desc)}</span>` : ""}
       </span>
       ${renderLessonPanel(item)}
     </article>
+  `;
+}
+
+function renderDisciplineBadge(item, className) {
+  const label = item.discipline || item.subject || "미분류";
+  return `
+    <span
+      class="${escapeAttr(className)}"
+      style="--discipline-color: ${escapeAttr(item.color)};"
+    >${escapeHtml(label)}</span>
   `;
 }
 
@@ -349,7 +405,11 @@ function renderLessonPanel(item) {
 }
 
 function renderLessonAction(action) {
-  const classes = ["dashboard-lesson-link", action.disabled ? "is-disabled" : ""].filter(Boolean).join(" ");
+  const classes = [
+    "dashboard-lesson-link",
+    action.variant ? `dashboard-lesson-link--${action.variant}` : "",
+    action.disabled ? "is-disabled" : "",
+  ].filter(Boolean).join(" ");
   const attrs = action.disabled
     ? `aria-disabled="true"`
     : `href="${escapeAttr(action.href)}" ${action.external ? `target="_blank" rel="noopener"` : ""} data-action-key="${escapeAttr(action.key)}"`;
@@ -379,11 +439,6 @@ function bindDashboardEvents(root, config, state) {
       const key = button.dataset.filter;
       if (!key) return;
       state[key] = button.dataset.filterValue || "";
-      if (key === "kind") {
-        state.school = "";
-        state.subject = "";
-      }
-      if (key === "school") state.subject = "";
       renderDashboard(root, config, state);
     });
   });
@@ -454,7 +509,8 @@ function createGroupItem(group, index = 0) {
     discipline,
     color: getSubjectColor(discipline, index),
     actions,
-    meta: [discipline, `${lessons.length}차시`, zeroSession.href ? "지도안" : ""].filter(Boolean),
+    lessonCount: lessons.length,
+    meta: [zeroSession.href ? "지도안" : ""].filter(Boolean),
     searchText: buildSearchText([
       group.title,
       group.desc,
@@ -478,6 +534,7 @@ function createGameItem(game, index = 0) {
       title: "게임 열기",
       href,
       external: /^https?:\/\//i.test(href),
+      variant: "game",
       disabled: !href,
     },
   ];
@@ -505,7 +562,7 @@ function createGameItem(game, index = 0) {
     discipline,
     color: getSubjectColor(discipline, index),
     actions,
-    meta: [discipline, "게임"].filter(Boolean),
+    meta: [],
     searchText: buildSearchText([game.title, game.desc, subject, discipline, schools.join(" "), "게임"]),
   };
 }
@@ -528,23 +585,15 @@ function createLessonAction(lesson, group, index, isZeroSession) {
 function normalizeState(items, state) {
   if (!["all", "lesson", "game", "recent"].includes(state.section)) state.section = "all";
   const sectionItems = getSectionItems(items, state.section);
-  const kinds = getKindOptions(sectionItems);
-  if (state.kind && !kinds.includes(state.kind)) state.kind = "";
-
-  const kindScope = state.kind ? sectionItems.filter(item => item.kind === state.kind) : sectionItems;
-  const schools = getSchools(kindScope, false);
-  if (state.school && !schools.includes(state.school)) state.school = "";
-
-  const schoolScope = state.school ? kindScope.filter(item => item.schools.includes(state.school)) : kindScope;
-  const subjects = getSubjects(schoolScope, false);
+  state.kind = "";
+  state.school = "";
+  const subjects = getSubjects(sectionItems, false);
   if (state.subject && !subjects.includes(state.subject)) state.subject = "";
 }
 
 function getFilteredItems(items, state) {
   const query = normalizeSearchQuery(state.query);
   return getSectionItems(items, state.section).filter(item => {
-    if (state.kind && item.kind !== state.kind) return false;
-    if (state.school && !item.schools.includes(state.school)) return false;
     if (state.subject && item.subject !== state.subject) return false;
     if (query && !item.searchText.includes(query)) return false;
     return true;
@@ -584,6 +633,10 @@ function getResultLabel(state, count) {
   return `${sectionLabel} · ${count}개`;
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat("ko-KR").format(Number(value) || 0);
+}
+
 function getKindOptions(items) {
   return unique(items.map(item => item.kind)).filter(Boolean);
 }
@@ -613,7 +666,20 @@ function sortSchools(schools) {
 }
 
 function getSubjects(items = [], useFallback) {
-  return unique(items.map(item => normalizeSubject(item.subject, useFallback))).filter(Boolean);
+  return sortSubjects(unique(items.map(item => normalizeSubject(item.subject, useFallback))).filter(Boolean));
+}
+
+function sortSubjects(subjects) {
+  return [...subjects].sort((a, b) => {
+    const aIndex = SUBJECT_ORDER.indexOf(a);
+    const bIndex = SUBJECT_ORDER.indexOf(b);
+    const aKnown = aIndex >= 0;
+    const bKnown = bIndex >= 0;
+    if (aKnown && bKnown) return aIndex - bIndex;
+    if (aKnown) return -1;
+    if (bKnown) return 1;
+    return a.localeCompare(b, "ko");
+  });
 }
 
 function getItemSchools(item, useFallback) {
@@ -661,6 +727,7 @@ function normalizeSubject(subject, useFallback) {
 
 function normalizeDiscipline(discipline, useFallback) {
   const value = String(discipline || "").trim();
+  if (value === "사회학") return "사회";
   return value || (useFallback ? "미분류" : "");
 }
 
@@ -670,6 +737,7 @@ function splitList(value) {
 
 function getSubjectColor(value, index = 0) {
   const normalized = normalizeDiscipline(value, true);
+  if (DISCIPLINE_COLORS[normalized]) return DISCIPLINE_COLORS[normalized];
   const hash = [...normalized].reduce((sum, char) => sum + char.charCodeAt(0), index);
   return SUBJECT_COLOR_PALETTE[Math.abs(hash) % SUBJECT_COLOR_PALETTE.length];
 }

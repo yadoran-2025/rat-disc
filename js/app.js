@@ -6,6 +6,7 @@ import { buildAppShell, renderSidebar, renderNavFooter, bindKeyboard, toggleFirs
 import { attachFocusAffordance, closeImageLightbox, closeFocusOverlay, closeBlockFullscreen, navigateBlockFullscreen, setBlockFullscreenSectionNavigator, expandNextFullscreenToggle, scrollBlockFullscreen } from "./ui/components.js";
 import { renderBlock, renderBlockSeparator } from "./ui/blocks/index.js";
 import { escapeHtml } from "./utils.js";
+import { trackCurrentPage } from "./visitor-analytics.js";
 
 /* ====================================================================
    진입점
@@ -15,6 +16,7 @@ async function init() {
   const lessonId = params.get("lesson");
 
   if (!lessonId) {
+    trackCurrentPage();
     await showDashboard();
     return;
   }
@@ -27,6 +29,7 @@ async function init() {
     if (!lessonRes.ok) throw new Error(`${lessonRes.status}`);
     app.lesson = await lessonRes.json();
     applyLessonMetadata(lessonId, dashboardConfig);
+    trackCurrentPage({ lessonId, title: app.lesson.title });
 
     await loadExternalAssets();
   } catch (err) {

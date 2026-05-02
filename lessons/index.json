@@ -9,6 +9,8 @@
     {
       "id": "rat-disc",
       "school": "고등학교",
+      "subject": "사회1",
+      "discipline": "사회",
       "title": "합리적 차별은 일단 여기서는 금지입니다",
       "desc": "차별의 정의와 차별의 판단 기준을 연습하는 수업입니다.",
       "zeroSession": {
@@ -35,6 +37,8 @@
     {
       "id": "civic-law",
       "school": "고등학교",
+      "subject": "법과사회",
+      "discipline": "법",
       "title": "법과 사회 1단원 : <br>개인생활과 법",
       "desc": "법과 사회 1단원: 개인생활과 법 강의안입니다.",
       "zeroSession": {
@@ -62,6 +66,8 @@
     {
       "id": "red-brick",
       "tag": "게임",
+      "subject": "경제",
+      "discipline": "경제",
       "title": "빨간벽돌집짓기(박찬정t) 보조 도구",
       "desc": "박찬정 선생님의 빨간벽돌집짓기 게임의 원활한 진행을 위한 웹사이트입니다.",
       "link": "https://yadoran-2025.github.io/red-brick/"
@@ -69,6 +75,8 @@
     {
       "id": "ssb-4mouth",
       "tag": "게임",
+      "subject": "경제",
+      "discipline": "경제",
       "title": "생산분배소비 사구동성",
       "desc": "생산인가 분배인가, 아니면 소비인가, 조원 넷이 동시에 외치는 게임입니다.",
       "link": "https://yadoran-2025.github.io/ssb-4mouth/"
@@ -76,6 +84,8 @@
     {
       "id": "poli-strat",
       "tag": "게임",
+      "subject": "국제정치",
+      "discipline": "정치",
       "title": "POLI-STRATEGY",
       "desc": "국제정치 이론을 기반으로 한 전략 시뮬레이션 게임입니다.",
       "link": "https://saam-kim.github.io/PoliStrat/"
@@ -83,6 +93,8 @@
     {
       "id": "domestic-overseas",
       "tag": "게임",
+      "subject": "통사1",
+      "discipline": "지리",
       "title": "국내일까 해외일까",
       "desc": "침착맨 채널에서 만든, 사진을 보고 국내일지 해외일지 추리하는 게임입니다.",
       "link": "https://chimhaha.net/game/quiz"

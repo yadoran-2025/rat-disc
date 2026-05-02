@@ -1,4 +1,5 @@
 import { ASSET_UPLOAD_ENDPOINT } from "../asset-config.js";
+import { escapeHtml } from "../utils.js";
 import { state } from "./state.js";
 import { copyText, upsertUploadedRow } from "./assets.js";
 import { escapeAttr, renderMain } from "./render.js";
