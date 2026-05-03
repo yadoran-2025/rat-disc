@@ -1,147 +1,399 @@
-/* A4 인쇄 규격 설정 */
 @page {
-    size: A4;
-    margin: 0; /* [핵심] 여백을 0으로 주어 브라우저 기본 날짜/URL 강제 제거 및 밀림 방지 */
+  size: A4;
+  margin: 0;
+}
+
+html {
+  background: var(--bg-soft);
 }
 
 body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Pretendard', sans-serif;
-    background-color: #f0f0f0;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-/* 화면 미리보기 단위 컨테이너 */
-.page-content {
-    width: 210mm;
-    height: 297mm;          /* A4 높이 고정: space-between이 정확히 동작하려면 필수 */
-    padding: 20mm 10mm;    /* 위아래 20mm, 좌우 10mm */
-    margin: 10mm auto;
-    background: white;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
+.print-toolbar-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+  background: color-mix(in srgb, var(--bg-soft) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 
-/* (중략... 제목 및 그리드 설정 유지) */
-/* 모든 페이지 상단 여백 안에 절대 위치되는 헤더 */
-.page-header {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    padding: 6mm 10mm 0;
-    box-sizing: border-box;
-}
-.header-top { margin-bottom: 2.5mm; }
-.header-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #2563eb;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-.header-line-wrapper { display: flex; height: 2px; }
-.header-line-accent { width: 60px; background: #2563eb; }
-.header-line-base { flex: 1; background: #e5e7eb; }
-.page-title-area { margin-top: 3mm; }
-.page-title-area h1 { margin: 0; font-size: 13px; font-weight: 700; color: #1a1a1a; }
-.page-title-area p  { margin: 1mm 0 0; font-size: 10px; color: #666; }
-.smart-grid { display: flex; gap: 25px; flex: 1; }
-.column { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-
-.image-item {
-    width: 100%; background: #fff; border-radius: 6px; overflow: hidden;
-    border: 1px solid #e0e0e0; box-sizing: border-box;
-    break-inside: avoid; page-break-inside: avoid; margin-bottom: 0; 
-}
-.image-item .caption { background-color: #f8f8f8; padding: 8px 12px; font-size: 11px; font-weight: 600; color: #333; border-bottom: 1px solid #eee; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.tag-badge {
-    display: inline-block;
-    background: #eef2f7;
-    color: #4a5568;
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-    border: 1px solid #d1d5db;
-    line-height: 1.2;
-}
-.image-item img { width: 100%; max-height: 850px; object-fit: contain; display: block; background-color: #fafafa; }
-
-.print-footer {
-    position: absolute;
-    bottom: 8mm;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 11px;
-    color: #999;
+.print-toolbar {
+  width: 210mm;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* 대시보드 이동 버튼 */
-.back-btn {
+.back-btn,
+.print-action-btn,
+.print-nav-btn {
+  font-family: inherit;
+}
+
+.back-btn,
+.print-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 20px;
-  background: #fff;
-  border: 1.5px solid #dde1ea;
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  color: #555;
+  border-radius: var(--radius);
   text-decoration: none;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  cursor: pointer;
 }
+
+.back-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .back-btn:hover {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--brand);
+  color: var(--brand-deep);
+  background: var(--brand-soft);
 }
 
-/* 인쇄 버튼 디자인 */
-.print-action-btn { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background-color: #2563eb; color: white; font-size: 15px; font-weight: 600; font-family: inherit; border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); transition: all 0.2s ease; }
-.print-action-btn:hover { background-color: #1d4ed8; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4); }
-.print-action-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3); }
-.print-action-btn svg { margin-right: 4px; }
+.back-btn svg,
+.print-action-btn svg,
+.print-nav-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
-/* 인쇄 시 완벽 최적화 설정 */
+.print-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.print-context__title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-context__sep,
+.print-context__count,
+.print-page-nav__text {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.print-page-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.print-nav-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.print-nav-btn:disabled {
+  color: var(--text-faint);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.print-action-btn {
+  padding: 8px 18px;
+  border: 0;
+  background: var(--brand);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.print-action-btn:hover {
+  background: var(--brand-deep);
+}
+
+.print-message {
+  width: 210mm;
+  margin: 24px auto;
+  padding: 32px;
+  box-sizing: border-box;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.print-message--error {
+  color: var(--brand-deep);
+}
+
+.page-content {
+  width: 210mm;
+  height: 297mm;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  margin: 10mm auto;
+  background: var(--bg);
+  box-shadow: 0 4px 20px rgba(17, 20, 24, 0.12);
+}
+
+.page-header {
+  flex-shrink: 0;
+  padding: 8mm 10mm 5mm;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-label {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-meta {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.header-line-wrapper {
+  display: flex;
+  height: 2px;
+  margin-top: 4px;
+}
+
+.header-line-accent {
+  width: 32px;
+  background: var(--brand);
+}
+
+.header-line-base {
+  flex: 1;
+  background: var(--border);
+}
+
+.page-title-area {
+  margin-top: 3mm;
+}
+
+.page-title-area h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.page-title-area p {
+  margin: 1mm 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.smart-grid {
+  flex: 1;
+  display: flex;
+  gap: 14px;
+  min-height: 0;
+  padding: 6mm 10mm 16mm;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.image-item {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.caption {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.caption-number {
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--brand-deep);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.caption-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 10px;
+}
+
+.caption-key {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caption-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.image-item img {
+  width: 100%;
+  max-height: 850px;
+  display: block;
+  object-fit: contain;
+  background: var(--bg);
+}
+
+.text-cutout {
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.text-cutout__headline {
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.text-cutout__body {
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.text-cutout__source {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.print-footer {
+  position: absolute;
+  right: 10mm;
+  bottom: 7mm;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 600;
+}
+
 @media print {
-    html, body {
-        width: 210mm;
-        height: 297mm;
-    }
-    
-    .page-content {
-        margin: 0;
-        /* A4 크기와 1:1로 일치시킴 */
-        width: 210mm;
-        height: 297mm;
-        max-height: 297mm;
-        /* 종이 내부의 안전 여백(Padding)으로 모든 것을 통제 */
-        padding: 20mm 10mm;   /* 위아래 20mm, 좌우 10mm */
-        box-shadow: none;
-        overflow: hidden; 
-        page-break-after: always;
-        page-break-inside: avoid;
-    }
-    
-    /* [핵심] 마지막 페이지 뒤에는 빈 페이지가 추가되지 않도록 강제 막음 */
-    .page-content:last-of-type {
-        page-break-after: auto;
-    }
-    
-    .no-print { display: none; }
-    
-    .print-footer {
-        color: #000;
-        bottom: 10mm; /* 여백 0에 맞춰 푸터 위치 재조정 */
-    }
-    
-    .image-item .caption { background-color: #f8f8f8 !important; }
+  html,
+  body {
+    width: 210mm;
+    height: 297mm;
+    background: var(--bg);
+  }
+
+  .no-print {
+    display: none;
+  }
+
+  .page-content {
+    width: 210mm;
+    height: 297mm;
+    max-height: 297mm;
+    margin: 0;
+    box-shadow: none;
+    overflow: hidden;
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+
+  .page-content:last-of-type {
+    page-break-after: auto;
+  }
+
+  .caption,
+  .tag-badge,
+  .caption-number {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

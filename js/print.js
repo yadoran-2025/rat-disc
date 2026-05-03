@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const rootContainer = document.getElementById('print-root');
 
-    rootContainer.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">불러오는 중...</div>';
+    rootContainer.innerHTML = '<div class="print-message">불러오는 중...</div>';
 
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYkmQF4OJAcQN2FXGrmjYZP1Kr4geSX3t3O2ArB0_ntOqbvfgRzuoRwKSG--c3czenNUzyBVpW_f1R/pub?output=csv';
 
@@ -35,14 +35,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).filter(function(img) { return img && img.url; });
 
         if (imagesToPrint.length === 0) {
-            rootContainer.innerHTML = '<div style="padding:40px; color:#999; text-align:center;">표시할 자료가 없습니다.<br>JSON의 imageKeys가 구글 시트와 일치하는지 확인하세요.</div>';
+            rootContainer.innerHTML = '<div class="print-message">표시할 자료가 없습니다.<br>JSON의 imageKeys가 구글 시트와 일치하는지 확인하세요.</div>';
             return;
         }
 
         await packImagesPerfectly(imagesToPrint, rootContainer, lessonData);
 
     } catch (error) {
-        rootContainer.innerHTML = '<div style="padding:20px; color:red;">에러: ' + error.message + '</div>';
+        rootContainer.innerHTML = '<div class="print-message print-message--error">에러: ' + error.message + '</div>';
         console.error(error);
     }
 });
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function packImagesPerfectly(images, rootContainer, lessonData) {
     const MAX_H = 1000; // A4 안전 세로 길이
     const COL_W = 370;
-    const ITEM_GAP = 25;
+    const ITEM_GAP = 10;
 
     // 1. 모든 아이템의 높이를 미리 계산
     const measuredItems = await Promise.all(images.map(function(item) {
@@ -121,62 +121,116 @@ async function packImagesPerfectly(images, rootContainer, lessonData) {
 
     // 6. HTML 그리기
     rootContainer.innerHTML = '';
+    let itemNumber = 1;
     pages.forEach(function(page, i) {
         const pageDiv = document.createElement('div');
         pageDiv.className = 'page-content';
+        pageDiv.id = 'print-page-' + (i + 1);
 
-        const header = document.createElement('div');
-        header.className = 'page-header';
-        let headerHTML = '<div class="header-top"><span class="header-label">' + (lessonData.header || '') + '</span></div>';
-        headerHTML += '<div class="header-line-wrapper"><div class="header-line-accent"></div><div class="header-line-base"></div></div>';
-
-        if (i === 0 && (lessonData.title || lessonData.subtitle)) {
-            headerHTML += '<div class="page-title-area">';
-            if (lessonData.title)    headerHTML += '<h1>' + lessonData.title + '</h1>';
-            if (lessonData.subtitle) headerHTML += '<p>'  + lessonData.subtitle + '</p>';
-            headerHTML += '</div>';
-        }
-        header.innerHTML = headerHTML;
-        pageDiv.appendChild(header);
+        pageDiv.appendChild(buildPageHeader(lessonData, images.length));
 
         const grid = document.createElement('div');
         grid.className = 'smart-grid';
         const leftCol = document.createElement('div'); leftCol.className = 'column';
-        page.left.forEach(function(item) { leftCol.appendChild(createPrintCard(item)); });
+        page.left.forEach(function(item) {
+            leftCol.appendChild(createPrintCard(item, itemNumber));
+            itemNumber++;
+        });
         const rightCol = document.createElement('div'); rightCol.className = 'column';
-        page.right.forEach(function(item) { rightCol.appendChild(createPrintCard(item)); });
+        page.right.forEach(function(item) {
+            rightCol.appendChild(createPrintCard(item, itemNumber));
+            itemNumber++;
+        });
 
         grid.appendChild(leftCol); grid.appendChild(rightCol);
         pageDiv.appendChild(grid);
 
         const footer = document.createElement('footer');
         footer.className = 'print-footer';
-        footer.textContent = '- ' + (i + 1) + ' -';
+        footer.textContent = (i + 1) + ' / ' + pages.length;
         pageDiv.appendChild(footer);
         rootContainer.appendChild(pageDiv);
     });
+
+    setupPrintToolbar(getPrintTitle(lessonData), images.length, pages.length);
 }
 
-function createPrintCard(item) {
+function buildPageHeader(lessonData, totalCount) {
+    const header = document.createElement('div');
+    header.className = 'page-header';
+
+    const row = document.createElement('div');
+    row.className = 'header-row';
+
+    const label = document.createElement('span');
+    label.className = 'header-label';
+    label.textContent = getPrintTitle(lessonData);
+
+    const meta = document.createElement('span');
+    meta.className = 'header-meta';
+    meta.textContent = '전체 ' + totalCount + '문제';
+
+    row.appendChild(label);
+    row.appendChild(meta);
+    header.appendChild(row);
+
+    const line = document.createElement('div');
+    line.className = 'header-line-wrapper';
+    line.innerHTML = '<div class="header-line-accent"></div><div class="header-line-base"></div>';
+    header.appendChild(line);
+
+    if (lessonData.title || lessonData.subtitle) {
+        const titleArea = document.createElement('div');
+        titleArea.className = 'page-title-area';
+        if (lessonData.title) {
+            const title = document.createElement('h1');
+            title.textContent = lessonData.title;
+            titleArea.appendChild(title);
+        }
+        if (lessonData.subtitle) {
+            const subtitle = document.createElement('p');
+            subtitle.textContent = lessonData.subtitle;
+            titleArea.appendChild(subtitle);
+        }
+        header.appendChild(titleArea);
+    }
+
+    return header;
+}
+
+function createPrintCard(item, number) {
     const card = document.createElement('div');
     card.className = 'image-item';
     
     const caption = document.createElement('div');
     caption.className = 'caption';
+
+    const numberLabel = document.createElement('div');
+    numberLabel.className = 'caption-number';
+    numberLabel.textContent = number;
+    caption.appendChild(numberLabel);
+
+    const captionBody = document.createElement('div');
+    captionBody.className = 'caption-body';
     
     const keyLabel = document.createElement('span');
     keyLabel.className = 'caption-key';
     keyLabel.textContent = item.key;
-    caption.appendChild(keyLabel);
+    captionBody.appendChild(keyLabel);
 
     if (item.keywords && item.keywords.length > 0) {
+        const tags = document.createElement('div');
+        tags.className = 'caption-tags';
         item.keywords.forEach(function(kw) {
             const tag = document.createElement('span');
             tag.className = 'tag-badge';
             tag.textContent = kw;
-            caption.appendChild(tag);
+            tags.appendChild(tag);
         });
+        captionBody.appendChild(tags);
     }
+
+    caption.appendChild(captionBody);
     
     card.appendChild(caption);
 
@@ -192,13 +246,43 @@ function createPrintCard(item) {
     return card;
 }
 
+function getPrintTitle(lessonData) {
+    return lessonData.header || lessonData.title || '기출문제';
+}
+
+function setupPrintToolbar(title, totalCount, totalPages) {
+    const titleEl = document.getElementById('print-context-title');
+    const countEl = document.getElementById('print-context-count');
+    const statusEl = document.getElementById('print-page-status');
+    const prevBtn = document.getElementById('print-prev-page');
+    const nextBtn = document.getElementById('print-next-page');
+    if (!titleEl || !countEl || !statusEl || !prevBtn || !nextBtn) return;
+
+    let currentPage = 1;
+    titleEl.textContent = title;
+    countEl.textContent = '문제 ' + totalCount + '개';
+
+    function updateStatus() {
+        statusEl.textContent = currentPage + ' / ' + totalPages + ' 페이지';
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+    }
+
+    function moveToPage(pageNumber) {
+        currentPage = Math.max(1, Math.min(totalPages, pageNumber));
+        const page = document.getElementById('print-page-' + currentPage);
+        if (page) page.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        updateStatus();
+    }
+
+    prevBtn.onclick = function() { moveToPage(currentPage - 1); };
+    nextBtn.onclick = function() { moveToPage(currentPage + 1); };
+    updateStatus();
+}
+
 function buildTextCutout(body) {
     const wrap = document.createElement('div');
     wrap.className = 'text-cutout';
-    wrap.style.fontSize = '12px'; // 인쇄용 폰트 크기 조정
-    wrap.style.padding = '10px';
-    wrap.style.border = '1px solid #ccc';
-    wrap.style.background = '#fff';
 
     const cleanBody = body.trim().replace(/\r\n/g, '\n');
     const parts = cleanBody.split(/\n---\n/);
@@ -218,28 +302,18 @@ function buildTextCutout(body) {
     if (headline) {
         const h = document.createElement('div');
         h.className = 'text-cutout__headline';
-        h.style.fontWeight = 'bold';
-        h.style.fontSize = '14px';
-        h.style.marginBottom = '5px';
-        h.style.borderBottom = '1px solid #eee';
         h.textContent = headline;
         wrap.appendChild(h);
     }
 
     const bodyEl = document.createElement('div');
     bodyEl.className = 'text-cutout__body';
-    bodyEl.style.whiteSpace = 'pre-wrap';
-    bodyEl.style.lineHeight = '1.4';
     bodyEl.textContent = restLines.join('\n');
     wrap.appendChild(bodyEl);
 
     if (sourcePart) {
         const src = document.createElement('div');
         src.className = 'text-cutout__source';
-        src.style.fontSize = '10px';
-        src.style.color = '#777';
-        src.style.marginTop = '8px';
-        src.style.borderTop = '1px dashed #ddd';
         src.textContent = sourcePart;
         wrap.appendChild(src);
     }
