@@ -10,7 +10,13 @@ const [sheetText, analytics, allVisitors] = await Promise.all([
   fetchJson("analytics/groupClickVisitors"),
 ]);
 const resourcesByTitle = new Map(readPublishedResources(sheetText).map(resource => [resource.title, resource]));
-const migrations = Object.values(analytics || {})
+const latestStatsByTitle = new Map();
+Object.values(analytics || {}).forEach(source => {
+  if (!source?.title) return;
+  const existing = latestStatsByTitle.get(source.title);
+  if (!existing || (Number(source.updatedAt) || 0) > (Number(existing.updatedAt) || 0)) latestStatsByTitle.set(source.title, source);
+});
+const migrations = [...latestStatsByTitle.values()]
   .map(source => ({ source, target: resourcesByTitle.get(source.title) }))
   .filter(({ source, target }) => target && source.groupId && source.groupId !== target.id);
 
@@ -62,14 +68,14 @@ function readPublishedResources(text) {
     .filter(row => String(row.published).toLowerCase() === "true")
     .map(row => {
       const unitCodes = String(row["단원_코드"] || "").split(/[,;\n]+/).map(value => Number(value.trim())).filter(Number.isSafeInteger);
-      return { title: row.group_title, id: createResourceId(row.resource_id, row.group_title, unitCodes) };
+      return { title: row.group_title, id: createResourceId(row.resource_id || row.group_id, row.group_title, unitCodes) };
     });
 }
 
 function createResourceId(resourceId, title, unitCodes) {
   const explicitId = String(resourceId || "").normalize("NFKC").trim().toLowerCase()
     .replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 96);
-  if (explicitId) return explicitId.startsWith("resource-") ? explicitId : `resource-${explicitId}`;
+  if (explicitId) return explicitId;
   const slug = String(title || "resource").normalize("NFKC").toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
   return ["resource", slug || "untitled", ...unitCodes].join("-");

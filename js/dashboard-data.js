@@ -302,7 +302,7 @@ export function buildDashboardCatalog(groupRows = [], unitRows = []) {
     const title = String(row.group_title || "").trim();
     if (!title || !isPublished(row.published)) return;
     const unitCodes = splitSheetList(row["단원_코드"]).map(normalizeUnitCode).filter(code => code != null);
-    const id = createResourceId(row.resource_id, title, unitCodes);
+    const id = createResourceId(row.resource_id || row.group_id, title, unitCodes);
     if (resourceIds.has(id)) {
       diagnostics.duplicateResourceIds.push(id);
       return;
@@ -457,7 +457,7 @@ function slugifyResourceId(value) {
     .replace(/[^\p{L}\p{N}_-]+/gu, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 96);
-  return id ? (id.startsWith("resource-") ? id : `resource-${id}`) : "";
+  return id;
 }
 
 function createResourceAction(key, label, value) {

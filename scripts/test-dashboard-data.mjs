@@ -18,7 +18,7 @@ const groupRows = [
   { published: "TRUE", group_title: "HTTP 자료", kind: "lesson", "단원_코드": "45", teacher_link: "http://example.com/teacher" },
   { published: "TRUE", group_title: "위험한 링크", kind: "lesson", "단원_코드": "45", teacher_link: "javascript:alert(1)", blog_link: "javascript:alert(2)", worksheet_link: "data:text/html,unsafe" },
   { published: "TRUE", group_title: "프로토콜 상대 링크", kind: "lesson", "단원_코드": "45", teacher_link: "//evil.example/teacher", worksheet_link: "mailto:teacher@example.com" },
-  { published: "TRUE", resource_id: "stable-material-id", group_title: "고정 식별 자료", kind: "lesson", "단원_코드": "45", teacher_link: "https://example.com/stable" },
+  { published: "TRUE", group_id: "stable-material-id", group_title: "고정 식별 자료", kind: "lesson", "단원_코드": "45", teacher_link: "https://example.com/stable" },
   { published: "", group_title: "숨긴 자료", kind: "lesson", "단원_코드": "46", teacher_link: "https://example.com/hidden" },
   { published: "TRUE", group_title: "잘못 연결된 자료", kind: "lesson", "단원_코드": "999", teacher_link: "https://example.com/unknown" },
 ];
@@ -37,7 +37,7 @@ assert.deepEqual(catalog.resources.find(({ title }) => title === "우리가 만�
 ]);
 assert.equal(catalog.resources.find(({ title }) => title === "우리가 만드는 수요곡선").actions.every(({ external }) => external), true);
 assert.equal(catalog.resources.find(({ title }) => title === "우리가 만드는 수요곡선").searchText.includes("설명전용검색어"), true);
-assert.equal(catalog.resources.find(({ title }) => title === "고정 식별 자료").id, "resource-stable-material-id");
+assert.equal(catalog.resources.find(({ title }) => title === "고정 식별 자료").id, "stable-material-id");
 assert.deepEqual(catalog.resources.find(({ title }) => title === "상대 경로 자료").actions, [
   { key: "teacher", label: "교사용 자료", href: "lesson.html?mode=teacher", external: false },
   { key: "worksheet", label: "활동지", href: "/worksheet.html", external: false },
