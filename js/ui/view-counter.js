@@ -5,8 +5,8 @@ const EMPTY_MARK = "–";
 export function renderViewCounter() {
   return `
     <div class="curation-topbar__views" data-view-counter aria-live="polite">
-      <span>오늘 <b data-view-today>${EMPTY_MARK}</b></span>
-      <span>누적 <b data-view-total>${EMPTY_MARK}</b></span>
+      <span>today <b data-view-today>${EMPTY_MARK}</b></span>
+      <span>total <b data-view-total>${EMPTY_MARK}</b></span>
     </div>
   `;
 }

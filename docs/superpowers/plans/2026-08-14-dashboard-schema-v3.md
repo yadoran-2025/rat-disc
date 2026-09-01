@@ -32,6 +32,7 @@
 | `new!` | `resource.isNew` |
 | `published` | 공개 필터 |
 | `group_title` | `resource.title`; 빈 제목 행은 제외 |
+| `resource_id` | `resource.id`; 제목·단원 코드가 바뀌어도 유지하는 영구 식별자. 새 행에는 반드시 입력 |
 | `maker` | 분리·중복 제거한 `resource.makers` |
 | `kind` | `game`, 그 외 값은 `lesson` |
 | `discipline` | `resource.discipline` |
@@ -190,16 +191,18 @@ const SUBJECT_LABELS = {
   5. 공개 자료만 읽고 단원 코드를 조인한다.
   6. 자료의 `subjects`, `schools`, `unitKeys`를 조인 결과에서 파생한다. 원본 `school`은 조인 결과를 보완만 한다.
   7. `teacher_link`, `worksheet_link`가 있을 때만 action을 만든다.
-  8. 자료 ID는 `resource-${slug(group_title)}-${unitCodes.join("-")}`로 만든다. 동일 ID가 다시 나오면 첫 행만 쓰고 diagnostics에 기록한다.
+  8. 자료 ID는 `resource_id`가 있으면 이를 사용한다. 없을 때만 `resource-${slug(group_title)}-${unitCodes.join("-")}`로 만든다. 동일 ID가 다시 나오면 첫 행만 쓰고 diagnostics에 기록한다.
 
   ```js
-  function createResourceId(title, unitCodes) {
+  function createResourceId(resourceId, title, unitCodes) {
+    const explicitId = slugifyResourceId(resourceId);
+    if (explicitId) return explicitId;
     const slug = String(title || "resource")
       .normalize("NFKC")
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, "-")
       .replace(/^-|-$/g, "");
-    // ponytail: 동일 제목+단원코드는 중복 행으로 취급한다. 합법적 중복이 필요해지면 DB에 resource_id 열을 추가한다.
+    // ponytail: 기존 행 호환용 fallback. 새 행은 resource_id를 사용한다.
     return ["resource", slug || "untitled", ...unitCodes].join("-");
   }
   ```

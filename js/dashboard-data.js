@@ -302,7 +302,7 @@ export function buildDashboardCatalog(groupRows = [], unitRows = []) {
     const title = String(row.group_title || "").trim();
     if (!title || !isPublished(row.published)) return;
     const unitCodes = splitSheetList(row["단원_코드"]).map(normalizeUnitCode).filter(code => code != null);
-    const id = createResourceId(title, unitCodes);
+    const id = createResourceId(row.resource_id, title, unitCodes);
     if (resourceIds.has(id)) {
       diagnostics.duplicateResourceIds.push(id);
       return;
@@ -394,7 +394,7 @@ export function buildLegacyDashboardCatalog(groups = [], games = []) {
       if (middleUnit && !unitsByKey.get(key).middleUnits.includes(middleUnit)) unitsByKey.get(key).middleUnits.push(middleUnit);
     });
 
-    const id = createResourceId(title, [order]);
+    const id = createResourceId("", title, [order]);
     if (resourceIds.has(id)) return;
     resourceIds.add(id);
     const kind = normalizeKind(item.kind);
@@ -436,14 +436,28 @@ function splitSheetList(value) {
   return String(value || "").split(/[,;\n]+/).map(item => item.trim()).filter(Boolean);
 }
 
-function createResourceId(title, unitCodes) {
+function createResourceId(resourceId, title, unitCodes) {
+  const explicitId = slugifyResourceId(resourceId);
+  if (explicitId) return explicitId;
+
   const slug = String(title || "resource")
     .normalize("NFKC")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-|-$/g, "");
-  // ponytail: 동일 제목+단원코드는 중복 행으로 취급한다. 합법적 중복이 필요해지면 DB에 resource_id 열을 추가한다.
+  // ponytail: 기존 시트에 resource_id가 없을 때만 제목·단원 코드로 만든다. 다음 시트 수정 때 resource_id를 채우면 이 경로는 사라진다.
   return ["resource", slug || "untitled", ...unitCodes].join("-");
+}
+
+function slugifyResourceId(value) {
+  const id = String(value || "")
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_-]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
+  return id ? (id.startsWith("resource-") ? id : `resource-${id}`) : "";
 }
 
 function createResourceAction(key, label, value) {
